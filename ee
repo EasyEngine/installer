@@ -17,7 +17,7 @@ GROUP_ID=`id -g`
 DOCKER_ID=`getent group docker | cut -d: -f3`
 
 
-docker run --rm -t --name ee4-base --privileged --net=host -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
+docker run --rm -it --name ee4-base --privileged --net=host -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
         -v /var/run/docker.sock:/var/run/docker.sock:ro -v /etc/hosts:/etc/hosts:rw \
         -e HOST_HOME=$EE_HOME -e USER_ID=$USER_ID -e GROUP_ID=$GROUP_ID -e DOCKER_ID=$DOCKER_ID \
         easyengine/base $@
