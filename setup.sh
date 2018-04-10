@@ -7,6 +7,33 @@ function install_ee4 {
     sudo mv ee /usr/local/bin/ee
 }
 
+stack_disable {
+    services="nginx.service php5.6-fpm.service php7.0-fpm.service  mariadb.service redis-server.service"
+    sudo systemctl stop $services
+    sudo systemctl disable $services
+
+
+}
+
+ports_free() {
+	ports=( 80 443 )
+	free=0
+	for port in "${ports[@]}" ; do
+		# count the number of occurrences of $port in output: 1 = in use; 0 = not in use
+		if [[ "$OS" == 'linux' ]]; then
+			checkPortCMD="netstat -lnp tcp | grep "
+		elif [[ "$OS" == 'darwin' ]]; then
+			checkPortCMD="netstat -anp tcp | grep LISTEN | grep "
+		fi
+		runAsRoot $checkPortCMD $port > /dev/null 2>&1
+		if [ "$?" -eq 1 ]; then
+			free=1
+		fi
+	done
+	return $free
+}
+
+
 function setup_docker {
     # Setup docker
     if ! which docker > /dev/null 2>&1; then
@@ -86,6 +113,8 @@ if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" = "linux" ]; then
                 done
 
                 sudo ee stack stop --all > /dev/null
+                stack_disable
+                rm ~/.ee4/ee4
             fi
         fi
         setup_docker
@@ -97,5 +126,12 @@ else
         echo "Docker is required to use EasyEngine v4."
         echo "( Check following links for instructions : https://docs.docker.com/docker-for-mac/install/ )"
         exit
+    else
+        if ports_free; then
+            echo "Installing ee4"
+            install_ee4
+        else
+            echo "Please make sure ports 80 and 443 are free."
+        fi
     fi
 fi
