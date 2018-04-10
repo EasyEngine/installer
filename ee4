@@ -1,0 +1,41 @@
+#!/bin/bash
+
+sites_path=~/ee4-sites
+
+if [ -f ~/.ee4/config.yml ]; then
+    sed -e 's/:[^:\/\/]/=/g;s/$//g;s/ ^C/=/g' ~/.ee4/config.yml | tail -n +2  > config
+    source config
+    rm config
+fi
+
+EE_HOME=$HOME
+mkdir $EE_HOME/.ee4 $sites_path > /dev/null 2>&1
+touch $EE_HOME/.ee4/ee4.log
+
+USER_ID=`id -u`
+GROUP_ID=`id -g`
+DOCKER_ID=`getent group docker | cut -d: -f3`
+
+
+docker run --rm -t --name ee4-base --privileged --net=host -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
+        -v /var/run/docker.sock:/var/run/docker.sock:ro -v /etc/hosts:/etc/hosts:rw \
+        -e HOST_HOME=$EE_HOME -e USER_ID=$USER_ID -e GROUP_ID=$GROUP_ID -e DOCKER_ID=$DOCKER_ID \
+        dharmin/ee4 $@
+
+# case '$1' in
+#     'site') shift
+#             case '$1' in
+#                 'create')   shift;
+#                             site_name=`echo "$1" | tr "[:upper:]" "[:lower:]"`
+#                             if [[ "$site_name" =~ ^[-.a-z0-9]*$ ]]; then
+#                                 echo $site_name
+#                             fi
+#                             ;;
+#                 'delete') ;;
+#                 'list') ;;
+#                 '*') ;;
+#             esac
+#             ;;
+#     'wp') ;;
+#     '*') ;;
+# esac
