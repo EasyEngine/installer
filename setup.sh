@@ -29,7 +29,7 @@ if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" = "linux" ]; then
     echo -e "\e[1;31mWarning: \e[0mAre you absolutely sure you want to proceed with this installation? [\e[0;32my\e[0m/\e[0;31mn\e[0m] : "
     read ee4confirm
     if [ "$ee4" = "y" -o "$ee4" = 'Y' -o "$ee4confirm" = "y" -o "$ee4confirm" = 'Y' ]; then
-        if ( sudo ee -v | grep "v3" ) > /dev/null; then    
+        if ( sudo ee -v | grep "v3" ) > /dev/null 2>&1; then    
             setup_docker
             # Create temp ee4 bin
             mkdir ~/.ee4
@@ -93,6 +93,9 @@ if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" = "linux" ]; then
     fi
 else
     # MacOS
-    echo "Docker is required to use EasyEngine v4."
-    exit
+    if ! which docker > /dev/null 2>&1; then
+        echo "Docker is required to use EasyEngine v4."
+        echo "( Check following links for instructions : https://docs.docker.com/docker-for-mac/install/ )"
+        exit
+    fi
 fi
