@@ -12,7 +12,7 @@ function setup_docker {
     if ! which docker > /dev/null 2>&1; then
         echo "Installing docker"
         wget get.docker.com -O docker-setup.sh
-        if ! sh docker-setup.sh > /dev/null 2>&1; then
+        if sh docker-setup.sh > /dev/null 2>&1; then
             if sudo usermod -aG docker $USER > /dev/null 2>&1; then
                 rm docker-setup.sh
             fi
@@ -24,10 +24,11 @@ function setup_docker {
 
 # Check OS
 if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" = "linux" ]; then
-    echo "EasyEngine v4 is currently in beta. Do you still want to install ? [y/n] : "
+    echo -e "\e[1;31mWarning: \e[0mEasyEngine v4 is currently in beta. Do you still want to install ? [\e[0;32my\e[0m/\e[0;31mn\e[0m] : "
     read ee4
-
-    if [ "$ee4" = "y" -o "$ee4" = 'Y' ]; then
+    echo -e "\e[1;31mWarning: \e[0mAre you absolutely sure you want to proceed with this installation? [\e[0;32my\e[0m/\e[0;31mn\e[0m] : "
+    read ee4confirm
+    if [ "$ee4" = "y" -o "$ee4" = 'Y' -o "$ee4confirm" = "y" -o "$ee4confirm" = 'Y' ]; then
         if ( sudo ee -v | grep "v3" ) > /dev/null; then    
             setup_docker
             # Create temp ee4 bin
