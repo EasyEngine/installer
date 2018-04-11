@@ -130,9 +130,9 @@ if [ "$os_name" = "linux" ]; then
                             
                             # Import site to ee4
                             echo "Copying files to the new site."
-                            sudo cp -R . "$sites_path"/"$site_name"/app/src
+                            sudo cp -R /var/www/"$site_name"/htdocs/ "$sites_path"/"$site_name"/app/src
                             echo "Importing db..."
-                            ee4 wp "$site_name" db import "$site_name.db"
+                            ~/.ee4/ee4 wp "$site_name" db import "$site_name.db"
 
                             # Remove database files
                             sudo rm "$sites_path/$site_name/app/src/$site_name.db"
