@@ -6,9 +6,9 @@ function install_ee4() {
     echo "Installing ee4"
     
     if command -v wget > /dev/null 2>&1; then
-        wget https://raw.githubusercontent.com/easyengine/installer/master/ee -O ee
+        wget --quiet https://raw.githubusercontent.com/easyengine/installer/master/ee -O ee
     elif command -v curl > /dev/null 2>&1; then
-        curl -o ee https://raw.githubusercontent.com/easyengine/installer/master/ee
+        curl --silent -o ee https://raw.githubusercontent.com/easyengine/installer/master/ee
     else
         echo "You don't seem to have wget or curl installed!"
         echo "Please install wget or curl and re-run the script."
@@ -18,19 +18,26 @@ function install_ee4() {
     
     echo "We'll install the EasyEngine stack. This will take some time..."
     images=( "base" "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
-    for image in "${images[@]}" ; do
-        echo "Pulling $image"
-        docker pull easyengine/"$image"
-    done
+    if [ "$os_name" = "linux" ]; then
+        for image in "${images[@]}" ; do
+            echo "Pulling $image"
+            sudo su -c "docker pull easyengine/$image" $USER
+        done
+    else
+        for image in "${images[@]}" ; do
+            echo "Pulling $image"
+            docker pull easyengine/"$image"
+        done
+    fi
 }
 
 function stack_disable() {
     echo "Stopping the stack"
-    services=("nginx php5.6-fpm" "php7.0-fpm"  "mariadb" "redis-server")
+    services=("nginx" "php5.6-fpm" "php7.0-fpm"  "mariadb" "redis-server")
     if command -v systemctl > /dev/null 2>&1; then
         for service in "${services[@]}"; do
-            systemctl stop "$service" > /dev/null 2>&1
-            systemctl disable "$service" > /dev/null 2>&1
+            sudo systemctl stop "$service" > /dev/null 2>&1
+            sudo systemctl disable "$service" > /dev/null 2>&1
         done
     else
         for service in "${services[@]}"; do
@@ -42,21 +49,21 @@ function stack_disable() {
 }
 
 function ports_free() {
-	ports=( 80 443 )
-	free=0
-	for port in "${ports[@]}" ; do
-		# count the number of occurrences of $port in output: 1 = in use; 0 = not in use
-		if [[ "$os_name" == 'linux' ]]; then
-			checkPortCMD="netstat -lnp tcp | grep "
-		elif [[ "$os_name" == 'darwin' ]]; then
-			checkPortCMD="netstat -anp tcp | grep LISTEN | grep "
-		fi
-		runAsRoot "$checkPortCMD" "$port" > /dev/null 2>&1
-		if [ "$?" -eq 1 ]; then
-			free=1
-		fi
-	done
-	return $free
+    ports=( 80 443 )
+    free=0
+    for port in "${ports[@]}" ; do
+        # count the number of occurrences of $port in output: 1 = in use; 0 = not in use
+        if [[ "$os_name" == 'linux' ]]; then
+            checkPortCMD="netstat -lnp tcp | grep "
+        elif [[ "$os_name" == 'darwin' ]]; then
+            checkPortCMD="netstat -anp tcp | grep LISTEN | grep "
+        fi
+        sudo "$checkPortCMD" "$port" > /dev/null 2>&1
+        if [ "$?" -eq 1 ]; then
+            free=1
+        fi
+    done
+    return $free
 }
 
 
@@ -66,11 +73,8 @@ function setup_docker() {
         echo "Installing docker"
         wget get.docker.com -O docker-setup.sh
         if sh docker-setup.sh > /dev/null 2>&1; then
-            if sudo usermod -aG docker "$USER" > /dev/null 2>&1; then
-                if sudo su - "$USER"; then
-                    rm docker-setup.sh
-                fi
-            fi
+            sudo usermod -aG docker "$USER" > /dev/null 2>&1;
+            rm docker-setup.sh
         else
             echo "Docker installation failed"
         fi
@@ -89,7 +93,7 @@ if [ "$os_name" = "linux" ]; then
                 if setup_docker; then
                     # Create temp ee4 bin
                     mkdir ~/.ee4
-                    wget https://raw.githubusercontent.com/easyengine/installer/master/ee -O ~/.ee4/ee4
+                    wget --quiet https://raw.githubusercontent.com/easyengine/installer/master/ee -O ~/.ee4/ee4
                     chmod +x ~/.ee4/ee4
 
                     echo "EasyEngine v3 found on the system!  We have to disable EasyEngine v3 and all of its stacks permanently to setup EasyEngine v4.  Do you want to continue ? [y/n] : "

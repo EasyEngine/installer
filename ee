@@ -17,7 +17,17 @@ GROUP_ID=`id -g`
 DOCKER_ID=`getent group docker | cut -d: -f3`
 
 
-docker run --rm -it --name ee4-base --privileged --net=host -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
-        -v /var/run/docker.sock:/var/run/docker.sock:ro -v /etc/hosts:/etc/hosts:rw \
-        -e HOST_HOME=$EE_HOME -e USER_ID=$USER_ID -e GROUP_ID=$GROUP_ID -e DOCKER_ID=$DOCKER_ID \
-        easyengine/base $@
+base_status=$( docker inspect -f '{{.State.Running}}' ee4-base 2> /dev/null )
+if [ "$?" -eq 0 ];then
+    if [ "$base_status" = "false" ];then
+        docker start ee4-base > /dev/null 2>&1
+    fi
+else
+    docker run -dit --name ee4-base --privileged --net=host \
+            -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro -v /etc/hosts:/etc/hosts:rw \
+            -e HOST_HOME=$EE_HOME -e USER_ID=$USER_ID -e GROUP_ID=$GROUP_ID -e DOCKER_ID=$DOCKER_ID \
+            --entrypoint "/bin/bash" easyengine/base:stable > /dev/null 2>&1
+fi
+
+docker exec -it ee4-base /usr/local/bin/ee4 "$@" --allow-root
