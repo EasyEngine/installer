@@ -4,7 +4,7 @@ os_name=$(uname -s | tr '[:upper:]' '[:lower:]')
 function install_ee4() {
     # Install ee4
     echo "Installing ee4"
-    
+
     if command -v wget > /dev/null 2>&1; then
         wget --quiet https://raw.githubusercontent.com/easyengine/installer/master/ee -O ee
     elif command -v curl > /dev/null 2>&1; then
@@ -15,7 +15,7 @@ function install_ee4() {
     fi
     chmod +x ee
     sudo mv ee /usr/local/bin/ee
-    
+
     echo "We'll install the EasyEngine stack. This will take some time..."
     images=( "base" "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
     if [ "$os_name" = "linux" ]; then
@@ -45,7 +45,7 @@ function stack_disable() {
             sudo service "$service" disable > /dev/null 2>&1
         done
     fi
-    
+
 }
 
 function ports_free() {
@@ -89,7 +89,7 @@ if [ "$os_name" = "linux" ]; then
         echo -e "\\e[1;31mWarning: \\e[0mAre you absolutely sure you want to proceed with this installation? [\\e[0;32my\\e[0m/\\e[0;31mn\\e[0m] : "
         read -r ee4confirm
         if [ "$ee4confirm" = "y" ] || [ "$ee4confirm" = 'Y' ]; then
-            if ( sudo ee -v | grep "v3" ) > /dev/null 2>&1; then    
+            if ( sudo ee -v | grep "v3" ) > /dev/null 2>&1; then
                 if setup_docker; then
                     # Create temp ee4 bin
                     mkdir ~/.ee4
@@ -99,7 +99,7 @@ if [ "$os_name" = "linux" ]; then
                     echo "EasyEngine v3 found on the system!  We have to disable EasyEngine v3 and all of its stacks permanently to setup EasyEngine v4.  Do you want to continue ? [y/n] : "
                     read -r ee3
                     if [ "$ee3" = "y" ] || [ "$ee3" = 'Y' ]; then
-                        
+
                         echo "Do you want to migrate the sites ? ( Some sites may not work as you expected. ) [y/n] : "
                         sites_path=~/ee4-sites
                         if [ -f ~/.ee4/config.yml ]; then
@@ -125,13 +125,13 @@ if [ "$os_name" = "linux" ]; then
 
                             # Create Site
                             echo "Creating $site_name in EasyEngine v4. This may take some time please wait..."
-                            if [ "$cache_type" = "wpredis" ]; then 
+                            if [ "$cache_type" = "wpredis" ]; then
                                 ~/.ee4/ee4 site create "$site_name" --wpredis
                             else
                                 ~/.ee4/ee4 site create "$site_name"
                             fi
                             echo "$site_name created in ee4"
-                            
+
                             # Import site to ee4
                             echo "Copying files to the new site."
                             sudo cp -R /var/www/"$site_name"/htdocs/ "$sites_path"/"$site_name"/app/src

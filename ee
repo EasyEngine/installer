@@ -9,7 +9,7 @@ if [ -f ~/.ee4/config.yml ]; then
 fi
 
 EE_HOME=$HOME
-mkdir $EE_HOME/.ee4 $sites_path > /dev/null 2>&1 
+mkdir $EE_HOME/.ee4 $sites_path > /dev/null 2>&1
 touch $EE_HOME/.ee4/ee4.log > /dev/null 2>&1
 
 USER_ID=`id -u`
