@@ -2,9 +2,7 @@
 os_name=$(uname -s | tr '[:upper:]' '[:lower:]')
 
 function install_ee4() {
-    # Install ee4
-    echo "Installing ee4"
-
+    # Install/update ee4
     if command -v wget > /dev/null 2>&1; then
         wget --quiet https://raw.githubusercontent.com/easyengine/installer/master/ee -O ee
     elif command -v curl > /dev/null 2>&1; then
@@ -16,18 +14,20 @@ function install_ee4() {
     chmod +x ee
     sudo mv ee /usr/local/bin/ee
 
-    echo "We'll install the EasyEngine stack. This will take some time..."
-    images=( "base" "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
+    echo "We'll install/update the EasyEngine stack. This will take some time..."
+    images=( "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
     if [ "$os_name" = "linux" ]; then
         for image in "${images[@]}" ; do
             echo "Pulling $image"
             sudo su -c "docker pull easyengine/$image" $USER
         done
+        sudo su -c "docker pull easyengine/base:$ee_installer_version" $USER
     else
         for image in "${images[@]}" ; do
             echo "Pulling $image"
             docker pull easyengine/"$image"
         done
+        docker pull easyengine/base:"$ee_installer_version"
     fi
 }
 
@@ -81,6 +81,29 @@ function setup_docker() {
     fi
 }
 
+function create_config() {
+    mkdir -p ~/.ee4
+    echo -e "---\nee_installer_version: latest" > ~/.ee4/config.yml
+}
+
+function source_config() {
+    sites_path=~/ee4-sites
+    if [ -f ~/.ee4/config.yml ]; then
+        sed -e 's/:[^:\/\/]/=/g;s/$//g;s/ ^C/=/g' ~/.ee4/config.yml | tail -n +2  > ee4-config
+        source ee4-config
+        rm ee4-config
+    fi
+}
+
+# Check ee4 installed or not
+if ee cli version --allow-root; then
+    source_config
+    install_ee4
+    exit
+fi
+
+ee_installer_version=stable
+
 # Check OS
 if [ "$os_name" = "linux" ]; then
     echo -e "\\e[1;31mWarning: \\e[0mEasyEngine v4 is currently in beta. Do you still want to install ? [\\e[0;32my\\e[0m/\\e[0;31mn\\e[0m] : "
@@ -101,12 +124,7 @@ if [ "$os_name" = "linux" ]; then
                     if [ "$ee3" = "y" ] || [ "$ee3" = 'Y' ]; then
 
                         echo "Do you want to migrate the sites ? ( Some sites may not work as you expected. ) [y/n] : "
-                        sites_path=~/ee4-sites
-                        if [ -f ~/.ee4/config.yml ]; then
-                            sed -e 's/:[^:\/\/]/=/g;s/$//g;s/ ^C/=/g' ~/.ee4/config.yml | tail -n +2  > ee4-config
-                            source ee4-config
-                            rm ee4-config
-                        fi
+                        source_config
 
                         # Get ee3 sites from db
                         sites=$(sudo sqlite3 /var/lib/ee/ee.db "select sitename,cache_type from sites")
@@ -152,7 +170,9 @@ if [ "$os_name" = "linux" ]; then
                 fi
             fi
             if setup_docker; then
+                echo "Installing ee4"
                 install_ee4
+                create_config
             fi
         fi
     fi
@@ -166,6 +186,7 @@ else
         if ports_free; then
             echo "Installing ee4"
             install_ee4
+            create_config
         else
             echo "Please make sure ports 80 and 443 are free."
         fi
