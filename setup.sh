@@ -20,7 +20,7 @@ function install_ee4() {
     images=( "base" "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
     for image in "${images[@]}" ; do
         echo "Pulling $image"
-        docker pull easyengine/"$image"
+        sudo su -c "docker pull easyengine/$image" $USER
     done
 }
 
@@ -66,11 +66,8 @@ function setup_docker() {
         echo "Installing docker"
         wget get.docker.com -O docker-setup.sh
         if sh docker-setup.sh > /dev/null 2>&1; then
-            if sudo usermod -aG docker "$USER" > /dev/null 2>&1; then
-                if sudo su - "$USER"; then
-                    rm docker-setup.sh
-                fi
-            fi
+            sudo usermod -aG docker "$USER" > /dev/null 2>&1;
+            rm docker-setup.sh
         else
             echo "Docker installation failed"
         fi
