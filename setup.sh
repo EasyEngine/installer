@@ -18,10 +18,17 @@ function install_ee4() {
     
     echo "We'll install the EasyEngine stack. This will take some time..."
     images=( "base" "nginx-proxy" "nginx" "php" "mariadb" "phpmyadmin" "mail" "redis" )
-    for image in "${images[@]}" ; do
-        echo "Pulling $image"
-        sudo su -c "docker pull easyengine/$image" $USER
-    done
+    if [ "$os_name" = "linux" ]; then
+        for image in "${images[@]}" ; do
+            echo "Pulling $image"
+            sudo su -c "docker pull easyengine/$image" $USER
+        done
+    else
+        for image in "${images[@]}" ; do
+            echo "Pulling $image"
+            docker pull easyengine/"$image"
+        done
+    fi
 }
 
 function stack_disable() {
