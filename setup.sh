@@ -122,50 +122,12 @@ if [ "$os_name" = "linux" ]; then
                     echo "EasyEngine v3 found on the system!  We have to disable EasyEngine v3 and all of its stacks permanently to setup EasyEngine v4.  Do you want to continue ? [y/n] : "
                     read -r ee3
                     if [ "$ee3" = "y" ] || [ "$ee3" = 'Y' ]; then
-
                         echo "Do you want to migrate the sites ? ( Some sites may not work as you expected. ) [y/n] : "
-                        source_config
-
-                        # Get ee3 sites from db
-                        sites=$(sudo sqlite3 /var/lib/ee/ee.db "select sitename,cache_type from sites")
-
-                        sudo ee stack start --mysql > /dev/null
-                        sudo ee stack stop --nginx > /dev/null
-
-                        for site in $sites;do
-
-                            # Export site from ee3
-                            site_name=$(echo "$site" | cut -d'|' -f1)
-                            cache_type=$(echo "$site" | cut -d'|' -f2)
-                            echo -e "\\nMigrating site: $site_name\\n"
-                            echo "Exporting db..."
-                            sudo wp db export "$site_name.db" --path="/var/www/$site_name/htdocs" --allow-root
-
-                            # Create Site
-                            echo "Creating $site_name in EasyEngine v4. This may take some time please wait..."
-                            if [ "$cache_type" = "wpredis" ]; then
-                                ~/.ee4/ee4 site create "$site_name" --wpredis
-                            else
-                                ~/.ee4/ee4 site create "$site_name"
-                            fi
-                            echo "$site_name created in ee4"
-
-                            # Import site to ee4
-                            echo "Copying files to the new site."
-                            sudo cp -R /var/www/"$site_name"/htdocs/ "$sites_path"/"$site_name"/app/src
-                            echo "Importing db..."
-                            ~/.ee4/ee4 wp "$site_name" db import "$site_name.db"
-
-                            # Remove database files
-                            sudo rm "$sites_path/$site_name/app/src/$site_name.db"
-                            sudo rm "/var/www/$site_name/htdocs/$site_name.db"
-
-
-                        done
-
-                        sudo ee stack stop --all > /dev/null
-                        stack_disable
-                        rm ~/.ee4/ee4
+                        read -r ee3migrate
+                        if [ "$ee3" = "y" ] || [ "$ee3" = 'Y' ]; then
+                            wget --quiet https://raw.githubusercontent.com/easyengine/installer/master/migrate.sh -O ~/.ee4/migrate.sh
+                            source ~/.ee4/migrate.sh
+                        fi
                     fi
                 fi
             fi
