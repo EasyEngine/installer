@@ -1,6 +1,7 @@
 #!/bin/bash
 
 sites_path=~/ee4-sites
+ee_installer_version=stable
 
 if [ -f ~/.ee4/config.yml ]; then
     sed -e 's/:[^:\/\/]/=/g;s/$//g;s/ ^C/=/g' ~/.ee4/config.yml | tail -n +2  > config
@@ -27,7 +28,7 @@ else
             -v ~/.ee4:$EE_HOME/.ee4 -v $sites_path:$sites_path \
             -v /var/run/docker.sock:/var/run/docker.sock:ro -v /etc/hosts:/etc/hosts:rw \
             -e HOST_HOME=$EE_HOME -e USER_ID=$USER_ID -e GROUP_ID=$GROUP_ID -e DOCKER_ID=$DOCKER_ID \
-            --entrypoint "/bin/bash" easyengine/base:stable > /dev/null 2>&1
+            --entrypoint "/bin/bash" easyengine/base:$ee_installer_version > /dev/null 2>&1
 fi
 
 docker exec -it ee4-base /usr/local/bin/ee4 "$@" --allow-root
