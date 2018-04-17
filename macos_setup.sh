@@ -15,7 +15,7 @@ sudo mv ~/ee /usr/local/bin/ee
 sudo chmod +x /usr/local/bin/ee
 
 
-if command -v docker > /dev/null 2>&1; then
+if ! command -v docker > /dev/null 2>&1; then
 	echo "You don't have Docker installed. Please install Docker for Mac"
 	echo "https://docs.docker.com/docker-for-mac/install/"
 else
