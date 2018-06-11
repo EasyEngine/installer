@@ -1,3 +1,3 @@
 # EasyEngine Installer
 
-`wget rt.cx/eev4 -O ee4-setup && bash ee4-setup`
+`wget rt.cx/ee4beta -O ee-setup && bash ee-setup`
