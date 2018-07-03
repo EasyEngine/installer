@@ -51,16 +51,34 @@ function setup_php_modules {
     fi
 }
 
-setup_docker
-setup_php
-setup_php_modules
-wget -O /usr/local/bin/ee https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
-chmod +x /usr/local/bin/ee
+function setup_dependencies {
+    setup_docker
+    setup_php
+    setup_php_modules
+}
 
-echo "Downloading our Docker images. This might take a while..."
-images=( easyengine/traefik easyengine/php easyengine/nginx easyengine/mariadb easyengine/phpmyadmin easyengine/mail )
-for image in "${images[@]}"; do
-  docker pull "$image"
-done
+function download_and_install_easyengine {
+    wget -O /usr/local/bin/ee https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
+    chmod +x /usr/local/bin/ee
+}
 
-echo "Run \"ee help site\" for more information on how to create a site."
+function pull_easyengine_images {
+    echo "Downloading our Docker images. This might take a while..."
+    images=( easyengine/traefik easyengine/php easyengine/nginx easyengine/mariadb easyengine/phpmyadmin easyengine/mailhog )
+    for image in "${images[@]}"; do
+        docker pull "$image"
+    done
+}
+
+function print_message {
+    echo "Run \"ee help site\" for more information on how to create a site."
+}
+
+function do_install {
+    setup_dependencies
+    download_and_install_easyengine
+    pull_easyengine_images
+    print_message
+}
+
+do_install
