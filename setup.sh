@@ -96,7 +96,9 @@ function print_message {
 
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install {
-    echo "Setting up EasyEngine\nChecking and Installing dependencies"
+    # Creating EasyEngine parent directory for log file.
+    mkdir -p /opt/easyengine
+    echo -e "Setting up EasyEngine\nChecking and Installing dependencies"
     setup_dependencies
     echo "Setting up EasyEngine phar"
     download_and_install_easyengine
