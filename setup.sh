@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
+set -o errexit
+
 # Looking up linux distro and declaring it globally.
 readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
 EE_CONF_DIR="/opt/easyengine"
-LOG_FILE="$EE_CONF_DIR/install.log"
+readonly LOG_FILE="$EE_CONF_DIR/install.log"
 
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
@@ -98,6 +100,16 @@ function print_message {
 function do_install {
     # Creating EasyEngine parent directory for log file.
     mkdir -p /opt/easyengine
+    touch $LOG_FILE
+
+    # Open standard out at `$LOG_FILE` for write.
+    # Write to file as well as terminal
+    exec 1> >(tee -a "$LOG_FILE")
+
+    # Redirect standard error to standard out such that 
+    # standard error ends up going to wherever standard
+    # out goes (the file and terminal).
+    exec 2>&1
     echo -e "Setting up EasyEngine\nChecking and Installing dependencies"
     setup_dependencies
     echo "Setting up EasyEngine phar"
