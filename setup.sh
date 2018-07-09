@@ -2,10 +2,12 @@
 
 # Looking up linux distro and declaring it globally.
 readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
+EE_CONF_DIR="/opt/easyengine"
+LOG_FILE="$EE_CONF_DIR/install.log"
 
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
-    if ! command -v docker > /dev/null 2>&1; then
+    if ! command -v docker >> $LOG_FILE 2>&1; then
         echo "Installing Docker"
         # Making sure wget and curl are installed.
         apt update && apt-get install wget curl -y
@@ -15,8 +17,8 @@ function setup_docker() {
     fi
 
     # Check if docker-compose exists. If not start docker-compose installation.
-    if ! command -v docker-compose > /dev/null 2>&1; then
-        echo " Installing Docker-Compose"
+    if ! command -v docker-compose >> $LOG_FILE 2>&1; then
+        echo "Installing Docker-Compose"
         # Running standard docker-compose installation.
         curl -L https://github.com/docker/compose/releases/download/1.21.2/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
@@ -50,13 +52,13 @@ function setup_php() {
 function setup_php_modules {
     # Setting up the three required php extensions for EasyEngine.
     php_modules=( pcntl curl sqlite3 )
-    if command -v php > /dev/null 2>&1; then
+    if command -v php >> $LOG_FILE 2>&1; then
       # Reading the php version.
       default_php_version="$(readlink -f /usr/bin/php | gawk -F "php" '{ print $2}')"
       echo "Installed PHP : $default_php_version"
       echo "Checking if required PHP modules are installed..."
       for module in "${php_modules[@]}"; do
-        if ! php -m | grep $module > /dev/null 2>&1; then
+        if ! php -m | grep $module >> $LOG_FILE 2>&1; then
           echo "$module not installed. Installing..."
           apt install -y php$default_php_version-$module
         else
@@ -94,7 +96,9 @@ function print_message {
 
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install {
+    echo "Setting up EasyEngine\nChecking and Installing dependencies"
     setup_dependencies
+    echo "Setting up EasyEngine phar"
     download_and_install_easyengine
     pull_easyengine_images
     print_message
