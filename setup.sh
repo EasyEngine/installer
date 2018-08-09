@@ -53,7 +53,7 @@ function setup_php() {
 
 function setup_php_modules {
     # Setting up the three required php extensions for EasyEngine.
-    php_modules=( pcntl curl sqlite3 )
+    php_modules=( pcntl curl sqlite3 zip )
     if command -v php >> $LOG_FILE 2>&1; then
       # Reading the php version.
       default_php_version="$(readlink -f /usr/bin/php | gawk -F "php" '{ print $2}')"
