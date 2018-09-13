@@ -4,8 +4,8 @@ set -o errexit
 
 # Looking up linux distro and declaring it globally.
 readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
-EE_CONF_DIR="/opt/easyengine"
-readonly LOG_FILE="$EE_CONF_DIR/install.log"
+EE_OPT_DIR="/opt/easyengine"
+readonly LOG_FILE="$EE_OPT_DIR/logs/install.log"
 
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
@@ -99,6 +99,14 @@ function print_message {
 
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install {
+    echo "Warning: This is a beta version. Do you want to continue installation? (Y/n)"
+    read input
+
+    if [ $input != "Y" ]
+    then
+        return
+    fi
+
     # Creating EasyEngine parent directory for log file.
     mkdir -p /opt/easyengine
     touch $LOG_FILE
