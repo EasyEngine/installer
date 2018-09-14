@@ -4,8 +4,8 @@ set -o errexit
 
 # Looking up linux distro and declaring it globally.
 readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
-EE_OPT_DIR="/opt/easyengine"
-readonly LOG_FILE="$EE_OPT_DIR/logs/install.log"
+EE_ROOT_DIR="/opt/easyengine"
+readonly LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
@@ -102,8 +102,7 @@ function do_install {
     echo "Warning: This is a beta version. Do you want to continue installation? (Y/n)"
     read input
 
-    if [ $input != "Y" ]
-    then
+    if [ $input != "Y" ] && [ $input != "y" ];then
         return
     fi
 
