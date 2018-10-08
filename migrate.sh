@@ -34,7 +34,7 @@ function generate_ssh_keys() {
     fi
     eval "$(ssh-agent -s)"
     ssh-add "$temp_migration_dir/ee3_to_ee4_key.rsa"
-    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of `root` user in ee3 server: $server"
+    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of 'root' user in ee3 server: $server"
 }
 
 function check_connection() {
