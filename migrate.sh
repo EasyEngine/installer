@@ -10,10 +10,11 @@ fi
 
 sites_path=/opt/easyengine/sites
 
-server='test.server'
-ssh_server="root@$server"
+server=$1
+site_name=$2
+new_site_name=$3
 
-site_name=$1
+ssh_server="root@$server"
 
 # site_list=$($ssh_server 'ee site list')
 # site_list=$(sed -e 's/^[[:space:]]*//' <<<"$site_list")
