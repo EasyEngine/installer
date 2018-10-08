@@ -43,17 +43,9 @@ elif [ "$ee3_site_type" = "wpsubdir" ]; then
    mu_flags=" --mu=subdir"
 fi
 
-if [ "$cache_type" = "wpredis" ]; then
-   cache_flag=" --cache"
-else
-   cache_flag=""
-fi
+[[ "$cache_type" = "wpredis" ]] && cache_flag=" --cache" || cache_flag=""
 
-if [ "$ee3_is_ssl" = 1 ]; then
-   ssl_flag=" --ssl=le"
-else
-   ssl_flag=""
-fi
+[[ "$ee3_is_ssl" -eq 1 ]] && ssl_flag=" --ssl=le" || ssl_flag=""
 
 site_root="/var/www/$site_name/htdocs"
 echo -e "\nMigrating site: $site_name to $new_site_name\n"
