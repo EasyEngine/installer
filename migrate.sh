@@ -11,11 +11,11 @@ site_name=$2
 new_site_name=$3
 
 if ! which ee > /dev/null 2>&1; then
-   wget -qO ee https://rt.cx/ee4beta && sudo bash ee
+    wget -qO ee https://rt.cx/ee4beta && sudo bash ee
 fi
 
 if ! command -v sqlite3 > /dev/null 2>&1; then
-   apt update && apt install sqlite3 -y
+    apt update && apt install sqlite3 -y
 fi
 
 sites_path=/opt/easyengine/sites
@@ -42,11 +42,11 @@ ee3_is_ssl=$(echo "$site_data" | cut -d'|' -f3)
 site_type=$ee3_site_type
 
 if [ "$ee3_site_type" = "wpsubdomain" ]; then
-   site_type="wp"
-   mu_flags=" --mu=subdom"
+    site_type="wp"
+    mu_flags=" --mu=subdom"
 elif [ "$ee3_site_type" = "wpsubdir" ]; then
-   site_type="wp"
-   mu_flags=" --mu=subdir"
+    site_type="wp"
+    mu_flags=" --mu=subdir"
 fi
 
 [[ "$cache_type" = "wpredis" ]] && cache_flag=" --cache" || cache_flag=""
@@ -73,21 +73,21 @@ echo "$new_site_name created in ee v4"
 # Import site to ee4
 
 if [ "$site_type" = "wp" ]; then
-   rsync -av "$ssh_server:$site_root/wp-content/" $new_site_root/wp-content/
-   echo "Importing db..."
-   cd $sites_path/$new_site_name
-   cp $temp_migration_dir/$site_name.db $new_site_root/$site_name.db
-   docker-compose exec php sh -c "wp db import "$site_name.db""
-   rm $new_site_root/$site_name.db
-   docker-compose exec php sh -c "wp search-replace "$site_name" "$new_site_name" --url='$site_name' --all-tables --precise --recurse-objects"
+    rsync -av "$ssh_server:$site_root/wp-content/" $new_site_root/wp-content/
+    echo "Importing db..."
+    cd $sites_path/$new_site_name
+    cp $temp_migration_dir/$site_name.db $new_site_root/$site_name.db
+    docker-compose exec php sh -c "wp db import "$site_name.db""
+    rm $new_site_root/$site_name.db
+    docker-compose exec php sh -c "wp search-replace "$site_name" "$new_site_name" --url='$site_name' --all-tables --precise --recurse-objects"
 
-   if [ "$ee3_is_ssl" = 1 ]; then
-       docker-compose exec php sh -c "wp search-replace "https://$new_site_name" "http://$new_site_name" --all-tables --precise --recurse-objects"
-   else
-       docker-compose exec php sh -c "wp search-replace "http://$new_site_name" "https://$new_site_name" --all-tables --precise --recurse-objects"
-   fi
+    if [ "$ee3_is_ssl" = 1 ]; then
+        docker-compose exec php sh -c "wp search-replace "https://$new_site_name" "http://$new_site_name" --all-tables --precise --recurse-objects"
+    else
+        docker-compose exec php sh -c "wp search-replace "http://$new_site_name" "https://$new_site_name" --all-tables --precise --recurse-objects"
+    fi
 else
-   rsync -av "$ssh_server:$site_root/" $new_site_root/
+    rsync -av "$ssh_server:$site_root/" $new_site_root/
 fi
 
 # Remove migration temp dir and exported db in server
