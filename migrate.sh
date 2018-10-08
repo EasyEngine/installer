@@ -1,5 +1,7 @@
 #!/bin/bash
 
+readonly temp_migration_dir="/opt/easyengine/.migration"
+
 if [ $# -lt 3 ]; then
     echo "Passing all three arguments is necessary."
     echo "Usage ./migrate.sh server_name ee3_site_name desired_new_ee4_site_name"
@@ -9,6 +11,14 @@ fi
 server=$1
 site_name=$2
 new_site_name=$3
+
+function create_temp_migration_dir() {
+    mkdir -p $temp_migration_dir
+}
+
+function generate_ssh_keys() {
+   ssh-keygen -t rsa -b 4096 -N '' -C 'ee3_to_ee4_key' -f "$temp_migration_dir/ee3_to_ee4_key"
+}
 
 if ! which ee > /dev/null 2>&1; then
     wget -qO ee https://rt.cx/ee4beta && sudo bash ee
@@ -21,13 +31,6 @@ fi
 sites_path=/opt/easyengine/sites
 
 ssh_server="root@$server"
-
-# site_list=$($ssh_server 'ee site list')
-# site_list=$(sed -e 's/^[[:space:]]*//' <<<"$site_list")
-
-temp_migration_dir="/opt/easyengine/.migration"
-
-mkdir -p $temp_migration_dir
 
 rsync -av $ssh_server:/var/lib/ee/ee.db "$temp_migration_dir/ee.db"
 
