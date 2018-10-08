@@ -25,7 +25,12 @@ function create_temp_migration_dir() {
 }
 
 function generate_ssh_keys() {
-   ssh-keygen -t rsa -b 4096 -N '' -C 'ee3_to_ee4_key' -f "$temp_migration_dir/ee3_to_ee4_key"
+    if [ ! -f "$temp_migration_dir/ee3_to_ee4_key.rsa" ]; then
+        ssh-keygen -t rsa -b 4096 -N '' -C 'ee3_to_ee4_key' -f "$temp_migration_dir/ee3_to_ee4_key.rsa"
+    fi
+    eval "$(ssh-agent -s)"
+    ssh-add "$temp_migration_dir/ee3_to_ee4_key.rsa"
+    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of ee3 server"
 }
 
 function migrate_site() {
