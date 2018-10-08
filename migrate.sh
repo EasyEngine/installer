@@ -30,7 +30,16 @@ function generate_ssh_keys() {
     fi
     eval "$(ssh-agent -s)"
     ssh-add "$temp_migration_dir/ee3_to_ee4_key.rsa"
-    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of ee3 server"
+    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of `root` user in ee3 server"
+}
+
+function check_connection() {
+    ssh -q root@$1 exit
+    if [ $? -ne 0 ]; then
+        echo "It seems the key $temp_migration_dir/ee3_to_ee4_key.rsa.pub has not yet been added to $1"
+        exit
+    fi
+
 }
 
 function migrate_site() {
@@ -113,6 +122,7 @@ function do_migration() {
     check_depdendencies
     create_temp_migration_dir
     generate_ssh_keys
+    check_connection
     migrate_site
     cleanup
 }
