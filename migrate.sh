@@ -1,5 +1,15 @@
 #!/bin/bash
 
+if [ $# -lt 3 ]; then
+    echo "Passing all three arguments is necessary."
+    echo "Usage ./migrate.sh server_name ee3_site_name desired_new_ee4_site_name"
+    exit
+fi
+
+server=$1
+site_name=$2
+new_site_name=$3
+
 if ! which ee > /dev/null 2>&1; then
    wget -qO ee https://rt.cx/ee4beta && sudo bash ee
 fi
@@ -9,10 +19,6 @@ if ! command -v sqlite3 > /dev/null 2>&1; then
 fi
 
 sites_path=/opt/easyengine/sites
-
-server=$1
-site_name=$2
-new_site_name=$3
 
 ssh_server="root@$server"
 
