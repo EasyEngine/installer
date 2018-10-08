@@ -115,6 +115,7 @@ function migrate_site() {
 
 function cleanup() {
     # Remove migration temp dir and exported db in server
+    true;
 }
 
 function do_migration() {
