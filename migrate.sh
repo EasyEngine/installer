@@ -4,7 +4,7 @@ if ! which ee > /dev/null 2>&1; then
    wget -qO ee https://rt.cx/ee4beta && sudo bash ee
 fi
 
-if ! command -v docker > /dev/null 2>&1; then
+if ! command -v sqlite3 > /dev/null 2>&1; then
    apt update && apt install sqlite3 -y
 fi
 
