@@ -127,3 +127,5 @@ function do_migration() {
     migrate_site
     cleanup
 }
+
+do_migration
