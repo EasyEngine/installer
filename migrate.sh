@@ -1,9 +1,13 @@
 #!/bin/bash
 
 readonly temp_migration_dir="/opt/easyengine/.migration"
+readonly arguments=$#
+readonly server=$1
+readonly site_name=$2
+readonly new_site_name=$3
 
 function check_args() {
-    if [ $# -lt 3 ]; then
+    if [ $arguments -lt 3 ]; then
         echo "Passing all three arguments is necessary."
         echo "Usage ./migrate.sh server_name ee3_site_name desired_new_ee4_site_name"
         exit
@@ -30,22 +34,19 @@ function generate_ssh_keys() {
     fi
     eval "$(ssh-agent -s)"
     ssh-add "$temp_migration_dir/ee3_to_ee4_key.rsa"
-    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of `root` user in ee3 server: $1"
+    echo "Add $temp_migration_dir/ee3_to_ee4_key.rsa.pub to authorized keys of `root` user in ee3 server: $server"
 }
 
 function check_connection() {
-    ssh -q root@$1 exit
+    ssh -q "root@$server" exit
     if [ $? -ne 0 ]; then
-        echo "It seems the key $temp_migration_dir/ee3_to_ee4_key.rsa.pub has not yet been added to $1"
+        echo "It seems the key $temp_migration_dir/ee3_to_ee4_key.rsa.pub has not yet been added to $server"
         exit
     fi
 
 }
 
 function migrate_site() {
-    server=$1
-    site_name=$2
-    new_site_name=$3
 
     sites_path=/opt/easyengine/sites
 
