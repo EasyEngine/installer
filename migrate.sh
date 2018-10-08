@@ -27,13 +27,34 @@ rsync -av $ssh_server:/var/lib/ee/ee.db "$temp_migration_dir/ee.db"
 
 # Get ee3 sites from db
 # sites=$(sudo sqlite3 $temp_migration_dir/ee.db "select sitename,site_type,cache_type from sites")
-site_data=$(sudo sqlite3 $temp_migration_dir/ee.db "select site_type,cache_type from sites where sitename='$site_name';")
+site_data=$(sudo sqlite3 $temp_migration_dir/ee.db "select site_type,cache_type,is_ssl from sites where sitename='$site_name';")
 
-site_type=$(echo "$site_data" | cut -d'|' -f1)
+ee3_site_type=$(echo "$site_data" | cut -d'|' -f1)
 cache_type=$(echo "$site_data" | cut -d'|' -f2)
+ee3_is_ssl=$(echo "$site_data" | cut -d'|' -f3)
 
+site_type=$ee3_site_type
 
-new_site_name=$(echo "$site_name" | sed 's/^\(.*\)\.rtdemo\.in$/\1.mbtest.tk/g')
+if [ "$ee3_site_type" = "wpsubdomain" ]; then
+   site_type="wp"
+   mu_flags=" --mu=subdom"
+elif [ "$ee3_site_type" = "wpsubdir" ]; then
+   site_type="wp"
+   mu_flags=" --mu=subdir"
+fi
+
+if [ "$cache_type" = "wpredis" ]; then
+   cache_flag=" --cache"
+else
+   cache_flag=""
+fi
+
+if [ "$ee3_is_ssl" = 1 ]; then
+   ssl_flag=" --ssl=le"
+else
+   ssl_flag=""
+fi
+
 site_root="/var/www/$site_name/htdocs"
 echo -e "\nMigrating site: $site_name to $new_site_name\n"
 
@@ -44,11 +65,8 @@ rsync -av "$ssh_server:$site_root/$site_name.db" "$temp_migration_dir/$site_name
 
 # Create Site
 echo "Creating $new_site_name in EasyEngine v4. This may take some time please wait..."
-if [ "$cache_type" = "wpredis" ]; then 
-    ee site create "$new_site_name" --type=$site_type --cache --ssl=inherit
-else
-    ee site create "$new_site_name" --type=$site_type --ssl=inherit
-fi
+
+ee site create "$new_site_name" --type=$site_type $cache_flag $mu_flags $ssl_flag
 
 new_site_root="$sites_path/$new_site_name/app/src"
 
