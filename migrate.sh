@@ -99,7 +99,7 @@ function migrate_site() {
     # Import site to ee4
 
     if [ "$site_type" = "wp" ]; then
-        rsync -av "$ssh_server:$site_root/wp-content/" $new_site_root/wp-content/
+        rsync -av "$ssh_server:$site_root/wp-content/" "$new_site_root/wp-content/"
         echo "Importing db..."
         cd $sites_path/$new_site_name
         cp $temp_migration_dir/$site_name.db $new_site_root/$site_name.db
@@ -115,6 +115,7 @@ function migrate_site() {
     else
         rsync -av "$ssh_server:$site_root/" $new_site_root/
     fi
+    chown -R www-data: "$new_site_root"
 }
 
 function cleanup() {
