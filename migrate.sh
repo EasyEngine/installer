@@ -5,6 +5,8 @@ readonly arguments=$#
 readonly server=$1
 readonly site_name=$2
 readonly new_site_name=$3
+readonly sites_path=/opt/easyengine/sites
+readonly ssh_server="root@$server"
 
 function check_args() {
     if [ $arguments -lt 3 ]; then
@@ -46,13 +48,13 @@ function check_connection() {
     fi
 }
 
+function get_ee3_db() {
+    if [ ! -f "$temp_migration_dir/ee.db" ]; then
+        rsync -av $ssh_server:/var/lib/ee/ee.db "$temp_migration_dir/ee.db"  
+    fi
+}
+
 function migrate_site() {
-
-    sites_path=/opt/easyengine/sites
-
-    ssh_server="root@$server"
-
-    rsync -av $ssh_server:/var/lib/ee/ee.db "$temp_migration_dir/ee.db"
 
     # Get ee3 sites from db
     # sites=$(sudo sqlite3 $temp_migration_dir/ee.db "select sitename,site_type,cache_type from sites")
@@ -125,6 +127,7 @@ function do_migration() {
     check_depdendencies
     create_temp_migration_dir
     check_connection
+    get_ee3_db
     migrate_site
     cleanup
 }
