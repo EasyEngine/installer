@@ -64,17 +64,18 @@ function migrate_site() {
 
     site_type=$ee3_site_type
 
+    [[ "$cache_type" = "wpredis" ]] && cache_flag=" --cache" || cache_flag=""
+
+    [[ "$ee3_is_ssl" -eq 1 ]] && ssl_flag=" --ssl=le" || ssl_flag=""
+
     if [ "$ee3_site_type" = "wpsubdomain" ]; then
         site_type="wp"
         mu_flags=" --mu=subdom"
+        [[ "$ee3_is_ssl" -eq 1 ]] && ssl_flag=" --ssl=le --wildcard" || ssl_flag=""
     elif [ "$ee3_site_type" = "wpsubdir" ]; then
         site_type="wp"
         mu_flags=" --mu=subdir"
     fi
-
-    [[ "$cache_type" = "wpredis" ]] && cache_flag=" --cache" || cache_flag=""
-
-    [[ "$ee3_is_ssl" -eq 1 ]] && ssl_flag=" --ssl=le" || ssl_flag=""
 
     site_root="/var/www/$site_name/htdocs"
     echo -e "\nMigrating site: $site_name to $new_site_name\n"
