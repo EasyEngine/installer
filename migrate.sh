@@ -105,9 +105,9 @@ function migrate_site() {
         docker-compose exec php sh -c "wp search-replace "$site_name" "$new_site_name" --url='$site_name' --all-tables --precise --recurse-objects"
 
         if [ "$ee3_is_ssl" = 1 ]; then
-            docker-compose exec php sh -c "wp search-replace "https://$new_site_name" "http://$new_site_name" --all-tables --precise --recurse-objects"
-        else
             docker-compose exec php sh -c "wp search-replace "http://$new_site_name" "https://$new_site_name" --all-tables --precise --recurse-objects"
+        else
+            docker-compose exec php sh -c "wp search-replace "https://$new_site_name" "http://$new_site_name" --all-tables --precise --recurse-objects"
         fi
     else
         rsync -av "$ssh_server:$site_root/" $new_site_root/
