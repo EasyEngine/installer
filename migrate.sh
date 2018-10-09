@@ -41,9 +41,9 @@ function check_connection() {
     ssh -q "root@$server" exit
     if [ $? -ne 0 ]; then
         echo "It seems the key $temp_migration_dir/ee3_to_ee4_key.rsa.pub has not yet been added to $server"
+        generate_ssh_keys
         exit
     fi
-
 }
 
 function migrate_site() {
@@ -123,7 +123,6 @@ function do_migration() {
     check_args
     check_depdendencies
     create_temp_migration_dir
-    generate_ssh_keys
     check_connection
     migrate_site
     cleanup
