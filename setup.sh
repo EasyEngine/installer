@@ -4,8 +4,8 @@ set -o errexit
 
 # Looking up linux distro and declaring it globally.
 readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
-EE_CONF_DIR="/opt/easyengine"
-readonly LOG_FILE="$EE_CONF_DIR/install.log"
+EE_ROOT_DIR="/opt/easyengine"
+readonly LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
@@ -85,12 +85,8 @@ function download_and_install_easyengine {
 }
 
 function pull_easyengine_images {
-    echo "Downloading our Docker images. This might take a while..."
-    # Pulling all the minimum required images by EasyEngine to create a site.
-    images=( easyengine/nginx-proxy easyengine/php easyengine/nginx easyengine/mariadb easyengine/phpmyadmin easyengine/mailhog easyengine/cron )
-    for image in "${images[@]}"; do
-        docker pull "$image"
-    done
+    # Running EE migrations and pulling of images by first `ee` invocation.
+    ee cli version
 }
 
 function print_message {
@@ -100,7 +96,7 @@ function print_message {
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install {
     # Creating EasyEngine parent directory for log file.
-    mkdir -p /opt/easyengine
+    mkdir -p /opt/easyengine/logs
     touch $LOG_FILE
 
     # Open standard out at `$LOG_FILE` for write.
