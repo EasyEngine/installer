@@ -86,7 +86,7 @@ function download_and_install_easyengine {
 
 function pull_easyengine_images {
     # Running EE migrations and pulling of images by first `ee` invocation.
-    ee cli version
+    ee cli info
 }
 
 function print_message {
