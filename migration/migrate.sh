@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+
 [[ $TRACE ]] && set -x
 
 trap 'rm -rf "$TMP_WORK_DIR" > /dev/null' INT TERM EXIT
@@ -19,26 +19,9 @@ function bootstrap() {
     apt update && apt-get install $packages -y
   fi
 
-  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/functions
   curl -o "$TMP_WORK_DIR/install-script" https://raw.githubusercontent.com/EasyEngine/installer/master/setup.sh
-}
-
-bootstrap
-source "$TMP_WORK_DIR/helper-functions"
-source "$TMP_WORK_DIR/install-script"
-
-function download_and_install_easyengine() {
-  EE4_BINARY="/usr/local/bin/$1"
-  # Download EasyEngine phar.
-  wget -O "$EE4_BINARY" https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
-  # Make it executable.
-  chmod +x "$EE4_BINARY"
-}
-
-function pull_easyengine_images() {
-  # Running EE migrations and pulling of images by first `ee` invocation.
-  ee_log_info1 "Pulling EasyEngine docker images"
-  "$EE4_BINARY" cli version
+  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/functions
+  curl -o "$TMP_WORK_DIR/remote-migrate" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/remote-migrate
 }
 
 function check_depdendencies() {
@@ -49,7 +32,6 @@ function check_depdendencies() {
   fi
 
   setup_docker
-
   setup_php
   setup_php_modules
 }
@@ -114,19 +96,18 @@ function display_report() {
 
 function run_ee4_sites_8080() {
 
-  RCol='\e[0m';
-  Red='\e[0;31m';
-  ee_log_info1 "This script will start EasyEngine v4 without disabling EasyEngine v3."
-  ee_log_info1 "EasyEngine v4 will listen on 8080 for HTTP and 8443 for HTTPS connection."
-  ee_log_info1 "Once you are satisfied with the result, you can put "
-  echo -e "${Red}migrate=YES${RCol}"
-  ee_log_info1 "in the file ~/user_acknowledgement.txt"
-  # run ee4 on 8080
-  # Show staging_acknowledgement
-  # Continue after staging_acknowledgement
+  [[ -f ~/staging_acknowledgement.txt ]] && source ~/staging_acknowledgement.txt
+  if [[ "$migrate" != "YES" ]]; then
+    ee_log_warn "The staging acknowledgement is pending."
+    ee_log_info1 "You need to create ~/staging_acknowledgement.txt"
+    ee_log_info1 "and then put the following in the file to start the migration."
+    echo -e "${Red}migrate=YES${RCol}"
+    ee_log_fail "Script will continue after staging acknowledgement."
+  fi
+
   ee_log_info2 "Downlading EasyEngine v4"
   download_and_install_easyengine ee4
-    
+
   "$EE4_BINARY" config set proxy_80_port 8080
   "$EE4_BINARY" config set proxy_443_port 8443
   "$EE4_BINARY" config set preferred_ssl_challenge dns
@@ -213,11 +194,22 @@ function run_ee4_sites_8080() {
 }
 
 function switch_to_ee4() {
-  # Show final_acknowledgement
-  # Disable ee3
-  # rename ee4 to ee
+  [[ -f ~/final_acknowledgement.txt ]] && source ~/final_acknowledgement.txt
+  if [[ "$migrate" != "YES" ]]; then
+    ee_log_warn "The user acknowledgement is pending."
+    ee_log_info1 "Once you are satisfied with the result, you need to create ~/final_acknowledgement.txt"
+    ee_log_info1 "and then put the following in the file."
+    echo -e "${Red}migrate=YES${RCol}"
+    ee_log_fail "Script will continue after user acknowledgement."
+  fi
+
+  ee_log_info1 "Switching EasyEngine v4 sites to port 80"
+  ee_log_info1 "Disabling EasyEngine v3."
+  ee stack stop --all
+
   "$EE4_BINARY" config set proxy_80_port 80
   "$EE4_BINARY" config set proxy_443_port 443
+
   pushd /opt/easyengine/services >/dev/null 2>&1
     sed -i 's/8080/80/;s/8443/443/;' docker-compose.yml
     docker-compose up -d
@@ -238,6 +230,12 @@ function switch_to_ee4() {
       popd >/dev/null 2>&1
     fi
   done
+
+  ee_log_info1 "Replacing \`ee\` executable with EasyEngine v4."
+  ee_log_info1 "Now running \`ee\` will execute EasyEngine v4."
+  mv $EE4_BINARY /usr/local/bin/ee
+
+  ee_log_info1 "Migration is complete."
 }
 
 function migrate() {
@@ -252,27 +250,24 @@ function migrate() {
 
 }
 
-function temp() {
 
-  if command -v ee >/dev/null 2>&1; then
+function do_migrate() {
 
-    version="$(ee --version | awk 'NR==1{ print $2 }' | grep -Eo '[0-9]{1}' | head -n1)"
+  bootstrap
+  source "$TMP_WORK_DIR/helper-functions"
+  source "$TMP_WORK_DIR/install-script"
+  source "$TMP_WORK_DIR/remote-migrate"
 
-    if [[ "$version" == "3" ]]; then
-      # If EasyEngine 3 is installed
-      echo "EasyEngine 3 is installed"
-      setup_dependencies
-
-
-    elif [[ "$version" == "4" ]]; then
-      # EasyEngine 4 is installed
-      echo "EasyEngine 4 is installed"
-      echo "Nothing to migrate"
-    else
-      echo "EasyEngine is not installed"
-    fi
+  parse_args "$@"
+  if [[ -z $REMOTE_HOST ]]; then
+    export SAME_SERVER=1
   fi
 
+  if (( SAME_SERVER )); then
+    migrate
+  else
+    remote_migrate
+  fi
 }
 
-migrate
+do_migrate
