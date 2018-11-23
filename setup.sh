@@ -2,7 +2,8 @@
 
 # Looking up linux distro and declaring it globally.
 export EE_LINUX_DISTRO=$(lsb_release -i | awk '{print $3}')
-EE_ROOT_DIR="/opt/easyengine"
+export EE_ROOT_DIR="/opt/easyengine"
+export EE4_BINARY="/usr/local/bin/ee"
 export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 
 function bootstrap() {
@@ -18,25 +19,13 @@ function bootstrap() {
 }
 
 function setup_dependencies() {
+  ee_log_info1 "Checking and Installing dependencies"
+  ee_log_info1 "Installing Docker"
   setup_docker
+  ee_log_info1 "Installing PHP"
   setup_php
-  setup_php_modules
-}
-
-function pull_easyengine_images {
-    # Running EE migrations and pulling of images by first `ee` invocation.
-    ee cli version
-
-function download_and_install_easyengine() {
-  # Download EasyEngine phar.
-  wget -O /usr/local/bin/ee https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
-  # Make it executable.
-  chmod +x /usr/local/bin/ee
-}
-
-function pull_easyengine_images() {
-  # Running EE migrations and pulling of images by first `ee` invocation.
-  ee cli info
+  ee_log_info1 "Installing PHP extensions"
+  setup_php_extensions
 }
 
 # Main installation function, to setup and run once the installer script is loaded.
@@ -57,7 +46,7 @@ function do_install() {
   bootstrap
   source "$TMP_WORK_DIR/helper-functions"
 
-  ee_log_info1 "Checking and Installing dependencies"
+
   setup_dependencies
   ee_log_info1 "Setting up EasyEngine"
   download_and_install_easyengine

@@ -230,10 +230,10 @@ function setup_php() {
   fi
 }
 
-function setup_php_modules() {
+function setup_php_extensions() {
   # Setting up the three required php extensions for EasyEngine.
   if command -v php >/dev/null 2>&1; then
-    php_modules=(pcntl curl sqlite3 zip)
+    php_extensions=(pcntl curl sqlite3 zip)
     if ! command -v gawk >/dev/null 2>&1; then
       apt install gawk -y
     fi
@@ -242,7 +242,7 @@ function setup_php_modules() {
     ee_log_info1 "Installed PHP : $default_php_version"
     ee_log_info1 "Checking if required PHP modules are installed..."
     packages=""
-    for module in "${php_modules[@]}"; do
+    for module in "${php_extensions[@]}"; do
       if ! php -m | grep $module >/dev/null 2>&1; then
         ee_log_info1 "$module not installed. Installing..."
         packages+="php$default_php_version-$module "
@@ -255,6 +255,7 @@ function setup_php_modules() {
 }
 
 function download_and_install_easyengine() {
+  ee_log_info1 "Downloading EasyEngine phar"
   # Download EasyEngine phar.
   wget -O "$EE4_BINARY" https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
   # Make it executable.
@@ -264,5 +265,5 @@ function download_and_install_easyengine() {
 function pull_easyengine_images() {
   # Running EE migrations and pulling of images by first `ee` invocation.
   ee_log_info1 "Pulling EasyEngine docker images"
-  "$EE4_BINARY" cli version
+  "$EE4_BINARY" cli info
 }
