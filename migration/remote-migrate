@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# set -eo pipefail
+[[ $TRACE ]] && set -x
+
+export SSH_KEY="$TMP_WORK_DIR/ee3_to_ee4_key"
+
+function bootstrap_remote() {
+  if ! (( SAME_SERVER )); then
+    if check_ssh; then
+      export REMOTE_TMP_WORK_DIR=$(ssh -i $SSH_KEY root@$REMOTE_HOST "mktemp -d '/tmp/ee-migration.XXXX'")
+      export SEARCH_REPLACE_SCRIPT="$REMOTE_TMP_WORK_DIR/search-replace"
+      export REVERSE_SEARCH_REPLACE_SCRIPT="$REMOTE_TMP_WORK_DIR/reverse-search-replace"
+      cat <<EOF > search-replace
+#!/usr/bin/env bash
+EE4_SITE_ROOT=$1
+ee3_site_name=$2
+
+pushd $EE4_SITE_ROOT >/dev/null 2>&1
+docker-compose exec php sh -c "wp search-replace "http://$ee3_site_name" "http://$ee3_site_name:8080" --url='$ee3_site_name' --all-tables --precise"
+docker-compose exec php sh -c "wp search-replace "https://$ee3_site_name" "https://$ee3_site_name:8443" --url='$ee3_site_name' --all-tables --precise"
+popd >/dev/null 2>&1
+EOF
+
+  cat <<EOF > reverse-search-replace
+#!/usr/bin/env bash
+EE4_SITE_ROOT=$1
+ee3_site_name=$2
+
+pushd $EE4_SITE_ROOT >/dev/null 2>&1
+docker-compose exec php sh -c "wp search-replace "http://$ee3_site_name:8080" "http://$ee3_site_name" --url='$ee3_site_name' --all-tables --precise"
+docker-compose exec php sh -c "wp search-replace "https://$ee3_site_name:8443" "https://$ee3_site_name" --url='$ee3_site_name' --all-tables --precise"
+popd >/dev/null 2>&1
+EOF
+
+      rsync -e "ssh -i $SSH_KEY" "/root/installer/setup.sh" "root@$REMOTE_HOST:$REMOTE_TMP_WORK_DIR/install-script"
+      rsync -e "ssh -i $SSH_KEY" "/root/installer/migration/functions" "root@$REMOTE_HOST:$REMOTE_TMP_WORK_DIR/helper-functions"
+      rsync -e "ssh -i $SSH_KEY" --remove-source-files "search-replace" "root@$REMOTE_HOST:$SEARCH_REPLACE_SCRIPT"
+      rsync -e "ssh -i $SSH_KEY" --remove-source-files "reverse-search-replace" "root@$REMOTE_HOST:$REVERSE_SEARCH_REPLACE_SCRIPT"
+
+      ee_log_info1 "Synced required files to remote host"
+
+      unset packages
+      run_remote_command "command -v curl > /dev/null 2>&1"
+      if [[ "$?" == "1" ]] ; then
+        packages="curl"
+      fi
+      run_remote_command "command -v wget > /dev/null 2>&1"
+      if [[ "$?" == "1" ]] ; then
+        packages="${packages} wget"
+      fi
+      ee_log_info1 "Updating apt repositories on the remote host"
+      run_remote_command "apt-get update"
+      if [[ $packages ]]; then
+        ee_log_info1 "Installing $packages on the remote host"
+        run_remote_command "apt-get install $packages -y"
+      fi
+    else
+      ee_log_fail "Script will continue only after SSH key access setup is completed"
+    fi
+  fi
+
+
+}
+
+function check_depdendencies_remote() {
+  ee_log_info1 "Checking dependencies"
+
+  run_remote_command "command -v sqlite3 > /dev/null 2>&1"
+  if [[ "$?" == "1" ]] ; then
+    ee_log_info1 "Installing sqlite3 on the remote host"
+    run_remote_command "apt-get install sqlite3 -y"
+  fi
+
+  run_remote_command "setup_docker"
+  run_remote_command "setup_php"
+  run_remote_command "setup_php_modules"
+}
+
+function run_checks_remote() {
+
+  check_depdendencies
+
+  # Check if ee executable exists
+  if command -v ee >/dev/null 2>&1; then
+    version="$(sudo ee --version | awk 'NR==1{ print $2 }' | grep -Eo '[0-9]{1}' | head -n1)"
+    if [[ "$version" == "4" ]]; then
+      # If EasyEngine 4 is installed, no migration necessary.
+      ee_log_fail "EasyEngine 4 is already installed. Exiting migration script."
+    fi
+  else
+    # Neither EasyEngine 3 nor EasyEngine 4 is installed.
+    ee_log_fail "EasyEngine is not installed. This migration script is meant to be run on an EasyEngine v3 host."
+  fi
+
+  ee3_data_size="$(du -cs /var/www /var/lib/mysql/ | tail -n 1 | cut -f1)"
+  ee4_data_size_offset="5242880" # 5 GiB
+  run_remote_command "mkdir -p /opt/easyengine"
+  disk_space_in_opt_easyengine=$(run_remote_command 'df -P /opt/easyengine' | xargs -n13)
+  free_space_for_ee4="$(echo ${disk_space_in_opt_easyengine} | awk '{print $11}')"
+  if (( $ee3_data_size + $ee4_data_size_offset > $free_space_for_ee4 )); then
+    ee_log_warn "We require at least $(( ($ee3_data_size + $ee4_data_size_offset) / 1048576 )) GiB disk space free"
+    ee_log_fail "Disk space is too low to continue migration"
+  fi
+}
+
+function display_report_remote() {
+  unset list_of_all_ee3_sites
+  unset sites_to_migrate
+  list_of_all_ee3_sites=$(ee site list | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+  i=0
+
+  for site_name in ${list_of_all_ee3_sites[@]}; do
+    (( i++ ))
+
+    sites_to_migrate+=($site_name)
+
+    if (( i >= $SITE_MAX_LIMIT )); then
+      ee_log_warn "This server contains more than $SITE_MAX_LIMIT EasyEngine v3 sites."
+      ee_log_warn "EasyEngine v4 supports only $SITE_MAX_LIMIT sites."
+      break
+    fi
+  done
+
+  echo
+  ee_log_info1 "The following sites will be migrated: "
+  for ee3_site_name in ${sites_to_migrate[@]}; do
+    ee_log_info2 "$ee3_site_name"
+  done
+
+}
+
+
+function run_ee4_sites_8080_remote() {
+  [[ -f ~/staging_acknowledgement.txt ]] && source ~/staging_acknowledgement.txt
+  if [[ "$migrate" != "YES" ]]; then
+    ee_log_warn "The staging acknowledgement is pending."
+    ee_log_info1 "You need to create ~/staging_acknowledgement.txt"
+    ee_log_info1 "and then put the following in the file to start the migration."
+    echo -e "${Red}migrate=YES${RCol}"
+    ee_log_fail "Script will continue after staging acknowledgement."
+  fi
+
+  ee_log_info2 "Downlading EasyEngine v4 on remote host"
+  run_remote_command "download_and_install_easyengine"
+
+  run_remote_command "$EE4_BINARY config set proxy_80_port 8080"
+  run_remote_command "$EE4_BINARY config set proxy_443_port 8443"
+  run_remote_command "$EE4_BINARY config set preferred_ssl_challenge dns"
+
+  typeset -A ee3_ee4_site_type_map
+  ee3_ee4_site_type_map=(
+    [html]="--type=html"
+    [php]="--type=php"
+    [php7]="--type=php"
+    [mysql]="--type=php --with-db"
+    [wp]="--type=wp"
+    [wpsubdir]="--type=wp --mu=subdir"
+    [wpsubdomain]="--type=wp --mu=subdom"
+  )
+
+  list_of_all_ee3_sites=$(ee site list | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+
+  for ee3_site_name in ${sites_to_migrate[@]}; do
+
+    ee3_site_name=$site_name
+    site_data=$(sqlite3 /var/lib/ee/ee.db "select  \
+    site_type, \
+    cache_type, \
+    is_ssl, \
+    php_version \
+    from sites where sitename='$ee3_site_name';")
+
+    ee3_site_type="$(echo "$site_data" | cut -d'|' -f1)"
+    ee3_cache_type="$(echo "$site_data" | cut -d'|' -f2)"
+    ee3_is_ssl="$(echo "$site_data" | cut -d'|' -f3)"
+    ee3_php_version="$(echo "$site_data" | cut -d'|' -f4)"
+
+    ee4_create_flags=""
+
+    [[ "$ee3_cache_type" != "basic" ]] && ee4_create_flags+=" --cache"
+
+    [[ "$ee3_is_ssl" -eq 1 ]] && ee4_create_flags+=" --ssl=le"
+
+    if [[ "$ee3_site_type" = "wpsubdomain" ]]; then
+      [[ "$ee3_is_ssl" -eq 1 ]] && ee4_create_flags+=" --wildcard"
+    fi
+
+    if [[ "$ee3_php_version" != "7.0" ]]; then
+      ee4_create_flags+=" --php=5.6"
+    fi
+
+    ee_log_info2 "Migrating site: $ee3_site_name"
+    EE3_SITE_HTDOCS="/var/www/$ee3_site_name/htdocs"
+    EE4_SITE_ROOT="/opt/easyengine/sites/$ee3_site_name"
+    EE4_SITE_HTDOCS="$EE4_SITE_ROOT/app/htdocs"
+
+    # Create Site
+    ee_log_info2 "Creating $ee3_site_name in EasyEngine v4. This may take some time please wait..."
+    run_remote_command "$EE4_BINARY site create $ee3_site_name ${ee3_ee4_site_type_map[$ee3_site_type]} $ee4_create_flags"
+
+    if [[ $ee3_site_type =~ ^(wp|wpsubdir|wpsubdomain)$ ]]; then
+      ee_log_info2 "Exporting database."
+      pushd $EE3_SITE_HTDOCS >/dev/null 2>&1
+        wp db export "$ee3_site_name.db" --allow-root
+        rsync --remove-source-files $ee3_site_name.db root@$REMOTE_HOST:$EE4_SITE_HTDOCS/$ee3_site_name.db
+      popd >/dev/null 2>&1
+
+      ee_log_info2 "Importing database."
+      run_remote_command "site_name=$ee3_site_name; pushd $EE4_SITE_ROOT >/dev/null 2>&1; docker-compose exec php sh -c 'wp db import \$ee3_site_name.db'; rm $EE4_SITE_HTDOCS/$ee3_site_name.db; popd >/dev/null 2>&1"
+
+    fi
+
+    if [[ $ee3_site_type =~ ^(wp|wpsubdir|wpsubdomain)$ ]]; then
+      ee_log_info2 "Copying site contents"
+      rsync -av "$EE3_SITE_HTDOCS/wp-content/" "root@$REMOTE_HOST:$EE4_SITE_HTDOCS/wp-content"
+      run_remote_command "bash $SEARCH_REPLACE_SCRIPT $EE4_SITE_ROOT $ee3_site_name"
+
+    else
+      ee_log_info2 "Copying site contents"
+      rsync -av "$EE3_SITE_HTDOCS/" "root@$REMOTE_HOST:$EE4_SITE_HTDOCS"
+    fi
+    run_remote_command "chown -R www-data: $EE4_SITE_HTDOCS"
+
+    ee_log_info1 "$ee3_site_name created in ee v4"
+  done
+
+  run_remote_command "pushd /opt/easyengine/services >/dev/null 2>&1; docker exec -it ee-global-redis redis-cli flushall; popd >/dev/null 2>&1"
+
+  ee_log_info1 "You can now visit the sites example.com pointed at the remote host"
+}
+
+function switch_to_ee4_remote() {
+  [[ -f ~/final_acknowledgement.txt ]] && source ~/final_acknowledgement.txt
+  if [[ "$migrate" != "YES" ]]; then
+    ee_log_warn "The user acknowledgement is pending."
+    ee_log_info1 "Once you are satisfied with the result, you need to create ~/final_acknowledgement.txt"
+    ee_log_info1 "and then put the following in the file."
+    echo -e "${Red}migrate=YES${RCol}"
+    ee_log_fail "Script will continue after final acknowledgement."
+  fi
+
+  ee_log_info1 "Switching EasyEngine v4 sites to port 80"
+  ee_log_info1 "Disabling EasyEngine v3."
+  ee stack stop --all
+
+  run_remote_command "$EE4_BINARY config set proxy_80_port 80"
+  run_remote_command "$EE4_BINARY config set proxy_443_port 443"
+
+  run_remote_command "pushd /opt/easyengine/services >/dev/null 2>&1; sed -i 's/8080/80/;s/8443/443/;' docker-compose.yml; docker-compose up -d; docker exec -it ee-global-redis redis-cli flushall; popd >/dev/null 2>&1"
+
+  list_of_all_ee3_sites=$(ee site list | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+  for ee3_site_name in ${list_of_all_ee3_sites[@]}; do
+    site_data=$(sqlite3 /var/lib/ee/ee.db "select  \
+    site_type \
+    from sites where sitename='$ee3_site_name';")
+    ee3_site_type=$(echo "$site_data" | cut -d'|' -f1)
+    EE4_SITE_ROOT="/opt/easyengine/sites/$ee3_site_name"
+
+    if [[ $ee3_site_type =~ ^(wp|wpsubdir|wpsubdomain)$ ]]; then
+      run_remote_command "bash $REVERSE_SEARCH_REPLACE_SCRIPT $EE4_SITE_ROOT $ee3_site_name"
+    fi
+
+  done
+
+  ee_log_info1 "Replacing \`ee\` executable with EasyEngine v4."
+  ee_log_info1 "Now running \`ee\` will execute EasyEngine v4."
+  mv $EE4_BINARY /usr/local/bin/ee
+
+  ee_log_info1 "Migration is complete."
+}
+
+function migrate_remote() {
+
+  bootstrap_remote
+
+  run_checks_remote
+
+  display_report_remote
+
+  run_ee4_sites_8080_remote
+
+  switch_to_ee4_remote
+
+}
