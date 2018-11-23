@@ -16,47 +16,36 @@ function bootstrap() {
     if ! command -v wget >/dev/null 2>&1; then
       packages="${packages} wget"
     fi
-    apt update && apt-get install $packages -y
+    ee_log_info1 "Updating apt repositories"
+    apt-get update
+    if [[ $packages ]]; then
+      ee_log_info1 "Installing $packages"
+      apt-get install $packages -y
+    fi
+
   fi
 
-  curl -o "$TMP_WORK_DIR/install-script" https://raw.githubusercontent.com/EasyEngine/installer/master/setup.sh
   curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
   curl -o "$TMP_WORK_DIR/remote-migrate" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/remote-migrate
-}
-
-function check_depdendencies() {
-  ee_log_info1 "Checking dependencies"
-  if ! command -v sqlite3 >/dev/null 2>&1; then
-    ee_log_info2 "Running apt update and installing sqlite3"
-    apt update && apt install sqlite3 -y
-  fi
-
-  ee_log_info1 "Installing Docker"
-  setup_docker
-  ee_log_info1 "Installing PHP"
-  setup_php
-  ee_log_info1 "Installing PHP extensions"
-  setup_php_extensions
 }
 
 function run_checks() {
   # Only allow root user to execute this script.
   if ((EUID != 0)); then
-    ee_log_fail "You must run this script as root."
+    ee_log_fail "You must run this script as root"
   fi
-
-  check_depdendencies
 
   # Check if ee executable exists
   if command -v ee >/dev/null 2>&1; then
     version="$(ee --version | awk 'NR==1{ print $2 }' | grep -Eo '[0-9]{1}' | head -n1)"
     if [[ "$version" == "4" ]]; then
       # If EasyEngine 4 is installed, no migration necessary.
-      ee_log_fail "EasyEngine 4 is already installed. Exiting migration script."
+      ee_log_fail "EasyEngine 4 is already installed. Exiting migration script"
     fi
   else
     # Neither EasyEngine 3 nor EasyEngine 4 is installed.
-    ee_log_fail "EasyEngine is not installed. Please run the install script."
+    ee_log_warn "EasyEngine is not installed"
+    ee_log_fail "This script is meant for migration and as such has to be run on a host which has EasyEngine 3 installed"
   fi
 
   ee3_data_size="$(du -cs /var/www /var/lib/mysql/ | tail -n 1 | cut -f1)"
@@ -83,8 +72,8 @@ function display_report() {
     sites_to_migrate+=($site_name)
 
     if ((i >= $SITE_MAX_LIMIT)); then
-      ee_log_warn "This server contains more than $SITE_MAX_LIMIT EasyEngine v3 sites."
-      ee_log_warn "EasyEngine v4 supports only $SITE_MAX_LIMIT sites."
+      ee_log_warn "This server contains more than $SITE_MAX_LIMIT EasyEngine v3 sites"
+      ee_log_warn "EasyEngine v4 supports only $SITE_MAX_LIMIT sites"
       break
     fi
   done
@@ -107,6 +96,8 @@ function run_ee4_sites_8080() {
     echo -e "${Red}migrate=YES${RCol}"
     ee_log_fail "Script will continue after staging acknowledgement."
   fi
+
+  check_depdendencies
 
   ee_log_info2 "Downlading EasyEngine v4"
   download_and_install_easyengine ee4
@@ -257,7 +248,6 @@ function do_migrate() {
 
   bootstrap
   source "$TMP_WORK_DIR/helper-functions"
-  source "$TMP_WORK_DIR/install-script"
   source "$TMP_WORK_DIR/remote-migrate"
 
   parse_args "$@"

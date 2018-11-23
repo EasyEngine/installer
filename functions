@@ -257,6 +257,21 @@ function setup_php_extensions() {
   fi
 }
 
+function check_depdendencies() {
+  ee_log_info1 "Checking dependencies"
+  if ! command -v sqlite3 >/dev/null 2>&1; then
+    ee_log_info2 "Installing sqlite3"
+    apt install sqlite3 -y
+  fi
+
+  ee_log_info1 "Installing Docker"
+  setup_docker
+  ee_log_info1 "Installing PHP"
+  setup_php
+  ee_log_info1 "Installing PHP extensions"
+  setup_php_extensions
+}
+
 function download_and_install_easyengine() {
   ee_log_info1 "Downloading EasyEngine phar"
   # Download EasyEngine phar.
