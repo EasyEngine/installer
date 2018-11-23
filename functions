@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+
+# These functions have been adapted from
+# https://github.com/dokku/dokku/blob/master/plugins/common/functions
+
+has_tty() {
+  declare desc="return 0 if we have a tty"
+  if [[ "$(/usr/bin/tty || true)" == "not a tty" ]]; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+ee_log_quiet() {
+  declare desc="log quiet formatter"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    echo "$*"
+  fi
+}
+
+ee_log_info1() {
+  declare desc="log info1 formatter"
+  echo "-----> $*"
+}
+
+ee_log_info2() {
+  declare desc="log info2 formatter"
+  echo "=====> $*"
+}
+
+ee_log_info1_quiet() {
+  declare desc="log info1 formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    echo "-----> $*"
+  else
+    return 0
+  fi
+}
+
+ee_log_info2_quiet() {
+  declare desc="log info2 formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    echo "=====> $*"
+  else
+    return 0
+  fi
+}
+
+ee_col_log_info1() {
+  declare desc="columnar log info1 formatter"
+  printf "%-6s %-18s %-25s %-25s %-25s\n" "----->" "$@"
+}
+
+ee_col_log_info1_quiet() {
+  declare desc="columnar log info1 formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    printf "%-6s %-18s %-25s %-25s %-25s\n" "----->" "$@"
+  else
+    return 0
+  fi
+}
+
+ee_col_log_info2() {
+  declare desc="columnar log info2 formatter"
+  printf "%-6s %-18s %-25s %-25s %-25s\n" "=====>" "$@"
+}
+
+ee_col_log_info2_quiet() {
+  declare desc="columnar log info2 formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    printf "%-6s %-18s %-25s %-25s %-25s\n" "=====>" "$@"
+  else
+    return 0
+  fi
+}
+
+ee_col_log_msg() {
+  declare desc="columnar log formatter"
+  printf "%-25s %-25s %-25s %-25s\n" "$@"
+}
+
+ee_col_log_msg_quiet() {
+  declare desc="columnar log formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    printf "%-25s %-25s %-25s %-25s\n" "$@"
+  else
+    return 0
+  fi
+}
+
+ee_log_verbose_quiet() {
+  declare desc="log verbose formatter (with quiet option)"
+  if [[ -z "$EE_QUIET_OUTPUT" ]]; then
+    echo "       $*"
+  else
+    return 0
+  fi
+}
+
+ee_log_verbose() {
+  declare desc="log verbose formatter"
+  echo "       $*"
+}
+
+ee_log_warn() {
+  declare desc="log warning formatter"
+  echo " !     $*" 1>&2
+}
+
+ee_log_fail() {
+  declare desc="log fail formatter"
+  echo "$@" 1>&2
+  exit 1
+}
+
+parse_args() {
+  declare desc="top-level cli arg parser"
+  local next_index=1; local skip=false; local args=("$@")
+  for arg in "$@"; do
+    if [[ "$skip" == "true" ]]; then
+      next_index=$(( next_index + 1 ))
+      skip=false
+      continue
+    fi
+
+    case "$arg" in
+      --quiet)
+        export EE_QUIET_OUTPUT=1
+        ;;
+      --trace)
+        export EE_TRACE=1
+        ;;
+      --dry-run)
+        export EE_DRY_RUN=1
+        ;;
+      --all)
+        export EE_SITE_ALL=1
+        ;;
+    esac
+    next_index=$(( next_index + 1 ))
+  done
+  return 0
+}
