@@ -14,11 +14,8 @@ function bootstrap() {
     apt update && apt-get install $packages -y
   fi
 
-  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/functions
+  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
 }
-
-bootstrap
-source "$TMP_WORK_DIR/helper-functions"
 
 function setup_dependencies() {
   setup_docker
@@ -44,7 +41,6 @@ function pull_easyengine_images() {
 
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install() {
-  # Creating EasyEngine parent directory for log file.
   mkdir -p /opt/easyengine/logs
   touch $LOG_FILE
 
@@ -56,6 +52,11 @@ function do_install() {
   # standard error ends up going to wherever standard
   # out goes (the file and terminal).
   exec 2>&1
+
+  # Creating EasyEngine parent directory for log file.
+  bootstrap
+  source "$TMP_WORK_DIR/helper-functions"
+
   ee_log_info1 "Checking and Installing dependencies"
   setup_dependencies
   ee_log_info1 "Setting up EasyEngine"
