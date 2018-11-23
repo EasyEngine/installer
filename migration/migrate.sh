@@ -11,16 +11,16 @@ readonly SITE_MAX_LIMIT=25
 export sites_to_migrate
 
 function bootstrap() {
-  if ! command -v curl > /dev/null 2>&1; then
+  if ! command -v curl >/dev/null 2>&1; then
     packages="curl"
-    if ! command -v wget > /dev/null 2>&1;
+    if ! command -v wget >/dev/null 2>&1; then
       packages="${packages} wget"
     fi
     apt update && apt-get install $packages -y
   fi
 
   curl -o "$TMP_WORK_DIR/install-script" https://raw.githubusercontent.com/EasyEngine/installer/master/setup.sh
-  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/functions
+  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
   curl -o "$TMP_WORK_DIR/remote-migrate" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/remote-migrate
 }
 
@@ -31,15 +31,18 @@ function check_depdendencies() {
     apt update && apt install sqlite3 -y
   fi
 
+  ee_log_info1 "Installing Docker"
   setup_docker
+  ee_log_info1 "Installing PHP"
   setup_php
-  setup_php_modules
+  ee_log_info1 "Installing PHP extensions"
+  setup_php_extensions
 }
 
 function run_checks() {
   # Only allow root user to execute this script.
-  if (( EUID != 0 )); then
-   ee_log_fail "You must run this script as root."
+  if ((EUID != 0)); then
+    ee_log_fail "You must run this script as root."
   fi
 
   check_depdendencies
@@ -50,6 +53,7 @@ function run_checks() {
     if [[ "$version" == "4" ]]; then
       # If EasyEngine 4 is installed, no migration necessary.
       ee_log_fail "EasyEngine 4 is already installed. Exiting migration script."
+    fi
   else
     # Neither EasyEngine 3 nor EasyEngine 4 is installed.
     ee_log_fail "EasyEngine is not installed. Please run the install script."
@@ -60,11 +64,11 @@ function run_checks() {
   mkdir -p /opt/easyengine
   free_space_for_ee4="$(df -P /opt/easyengine | awk 'NR==2 {print $4}')"
 
-  if ! (( $ee3_data_size + $ee4_data_size_offset > $free_space_for_ee4 )); then
-    ee_log_warn "We require at least $(( ($ee3_data_size + $ee4_data_size_offset) / 1048576 )) GiB disk space free"
+  if ! (($ee3_data_size + $ee4_data_size_offset > $free_space_for_ee4)); then
+    ee_log_warn "We require at least $((($ee3_data_size + $ee4_data_size_offset) / 1048576)) GiB disk space free"
     ee_log_fail "Disk space is too low to continue migration"
-
   fi
+
 }
 
 function display_report() {
@@ -74,11 +78,11 @@ function display_report() {
   i=0
 
   for site_name in ${list_of_all_ee3_sites[@]}; do
-    (( i++ ))
+    ((i++))
 
     sites_to_migrate+=($site_name)
 
-    if (( i >= $SITE_MAX_LIMIT )); then
+    if ((i >= $SITE_MAX_LIMIT)); then
       ee_log_warn "This server contains more than $SITE_MAX_LIMIT EasyEngine v3 sites."
       ee_log_warn "EasyEngine v4 supports only $SITE_MAX_LIMIT sites."
       break
@@ -92,7 +96,6 @@ function display_report() {
   done
 
 }
-
 
 function run_ee4_sites_8080() {
 
@@ -146,7 +149,7 @@ function run_ee4_sites_8080() {
 
     [[ "$ee3_is_ssl" -eq 1 ]] && ee4_create_flags+=" --ssl=le"
 
-    if [[ "$ee3_site_type" = "wpsubdomain" ]]; then
+    if [[ "$ee3_site_type" == "wpsubdomain" ]]; then
       [[ "$ee3_is_ssl" -eq 1 ]] && ee4_create_flags+=" --wildcard"
     fi
 
@@ -211,9 +214,9 @@ function switch_to_ee4() {
   "$EE4_BINARY" config set proxy_443_port 443
 
   pushd /opt/easyengine/services >/dev/null 2>&1
-    sed -i 's/8080/80/;s/8443/443/;' docker-compose.yml
-    docker-compose up -d
-    docker exec -it ee-global-redis redis-cli flushall
+  sed -i 's/8080/80/;s/8443/443/;' docker-compose.yml
+  docker-compose up -d
+  docker exec -it ee-global-redis redis-cli flushall
   popd >/dev/null 2>&1
 
   list_of_all_ee3_sites=$(ee site list | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
@@ -250,7 +253,6 @@ function migrate() {
 
 }
 
-
 function do_migrate() {
 
   bootstrap
@@ -263,7 +265,7 @@ function do_migrate() {
     export SAME_SERVER=1
   fi
 
-  if (( SAME_SERVER )); then
+  if ((SAME_SERVER)); then
     migrate
   else
     remote_migrate

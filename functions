@@ -116,10 +116,12 @@ ee_log_fail() {
 
 parse_args() {
   declare desc="top-level cli arg parser"
-  local next_index=1; local skip=false; local args=("$@")
+  local next_index=1
+  local skip=false
+  local args=("$@")
   for arg in "$@"; do
     if [[ "$skip" == "true" ]]; then
-      next_index=$(( next_index + 1 ))
+      next_index=$((next_index + 1))
       skip=false
       continue
     fi
@@ -138,22 +140,23 @@ parse_args() {
         export EE_SITE_ALL=1
         ;;
       --remote-host)
-        export REMOTE_HOST=${args[$next_index]}; skip=true
+        export REMOTE_HOST=${args[$next_index]}
+        skip=true
         ;;
     esac
-    next_index=$(( next_index + 1 ))
+    next_index=$((next_index + 1))
   done
   return 0
 }
 
 function check_ssh() {
   ee_log_info1 "Checking connection to remote server."
-  ssh -q -i $SSH_KEY "root@$REMOTE_HOST" exit > /dev/null 2>&1 # No need to show this output
+  ssh -q -i $SSH_KEY "root@$REMOTE_HOST" exit >/dev/null 2>&1 # No need to show this output
   if [ $? -eq 0 ]; then
     true
   else
     if [ ! -f "$SSH_KEY" ]; then
-      ssh-keygen -t rsa -b 4096 -N '' -C 'ee3_to_ee4_key' -f $SSH_KEY > /dev/null 2>&1 # No need to show this output
+      ssh-keygen -t rsa -b 4096 -N '' -C 'ee3_to_ee4_key' -f $SSH_KEY >/dev/null 2>&1 # No need to show this output
     else
       ee_log_info2 "If you have not done so already, you need to add the following"
       cat "${SSH_KEY}.pub"
