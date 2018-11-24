@@ -53,7 +53,7 @@ function run_checks() {
   mkdir -p /opt/easyengine
   free_space_for_ee4="$(df -P /opt/easyengine | awk 'NR==2 {print $4}')"
 
-  if ! (($ee3_data_size + $ee4_data_size_offset > $free_space_for_ee4)); then
+  if ! (($ee3_data_size + $ee4_data_size_offset < $free_space_for_ee4)); then
     ee_log_warn "We require at least $((($ee3_data_size + $ee4_data_size_offset) / 1048576)) GiB disk space free"
     ee_log_fail "Disk space is too low to continue migration"
   fi
