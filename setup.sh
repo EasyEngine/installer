@@ -15,7 +15,7 @@ function bootstrap() {
     apt update && apt-get install $packages -y
   fi
 
-  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
+  curl -so "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
 }
 
 # Main installation function, to setup and run once the installer script is loaded.

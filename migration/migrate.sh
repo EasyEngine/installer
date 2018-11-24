@@ -25,8 +25,8 @@ function bootstrap() {
 
   fi
 
-  curl -o "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
-  curl -o "$TMP_WORK_DIR/remote-migrate" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/remote-migrate
+  curl -so "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
+  curl -so "$TMP_WORK_DIR/remote-migrate" https://raw.githubusercontent.com/EasyEngine/installer/master/migration/remote-migrate
 }
 
 function run_checks() {
