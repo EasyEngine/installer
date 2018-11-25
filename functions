@@ -226,7 +226,7 @@ function setup_php() {
       export LC_ALL=en_US.UTF-8
       export LANG=en_US.UTF-8
       wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
-      ee_log_info1 "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
+      echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
       apt-get update
       apt-get install php7.2-cli -y
     fi
