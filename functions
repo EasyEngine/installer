@@ -272,16 +272,9 @@ function create_swap() {
 function check_swap() {
   ee_log_info1 "Checking swap"
   if free | awk '/^Swap:/ {exit !$2}'; then
-    # Have swap
-    swap_amt=$(free | awk '/^Swap:/ {print $2}')
-    # Check for 1 GiB
-    if [[ $swap_amt -le 1048576 ]]; then
-      ee_log_info1 "Swap less than 1GiB"
-      create_swap
-    else
-      :
-    fi
+    :
   else
+    ee_log_info1 "No swap detected"
     create_swap
   fi
 }
