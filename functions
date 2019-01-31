@@ -182,9 +182,9 @@ function run_remote_command() {
 }
 
 function setup_docker() {
+  ee_log_info1 "Installing Docker"
   # Check if docker exists. If not start docker installation.
   if ! command -v docker >/dev/null 2>&1; then
-    ee_log_info1 "Installing Docker"
     # Running standard docker installation.
     wget --quiet get.docker.com -O docker-setup.sh
     sh docker-setup.sh
@@ -206,6 +206,7 @@ function setup_docker() {
 }
 
 function setup_php() {
+  ee_log_info1 "Installing PHP"
   if ! command -v php >/dev/null 2>&1; then
     # Checking linux distro. Currently only Ubuntu and Debian are supported.
     if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
@@ -234,6 +235,7 @@ function setup_php() {
 }
 
 function setup_php_extensions() {
+  ee_log_info1 "Installing PHP extensions"
   # Setting up the three required php extensions for EasyEngine.
   if command -v php >/dev/null 2>&1; then
     php_extensions=(pcntl curl sqlite3 zip)
@@ -257,6 +259,33 @@ function setup_php_extensions() {
   fi
 }
 
+function create_swap() {
+  ee_log_info2 "Enabling 1GiB swap"
+  EE_SWAP_FILE="/ee-swapfile"
+  fallocate -l 1G $EE_SWAP_FILE && \
+  chmod 600 $EE_SWAP_FILE && \
+  chown root:root $EE_SWAP_FILE && \
+  mkswap $EE_SWAP_FILE && \
+  swapon $EE_SWAP_FILE
+}
+
+function check_swap() {
+  ee_log_info1 "Checking swap"
+  if free | awk '/^Swap:/ {exit !$2}'; then
+    # Have swap
+    swap_amt=$(free | awk '/^Swap:/ {print $2}')
+    # Check for 1 GiB
+    if [[ $swap_amt -le 1048576 ]]; then
+      ee_log_info1 "Swap less than 1GiB"
+      create_swap
+    else
+      :
+    fi
+  else
+    create_swap
+  fi
+}
+
 function check_depdendencies() {
   ee_log_info1 "Checking dependencies"
   if ! command -v sqlite3 >/dev/null 2>&1; then
@@ -264,12 +293,10 @@ function check_depdendencies() {
     apt install sqlite3 -y
   fi
 
-  ee_log_info1 "Installing Docker"
   setup_docker
-  ee_log_info1 "Installing PHP"
   setup_php
-  ee_log_info1 "Installing PHP extensions"
   setup_php_extensions
+  check_swap
 }
 
 function download_and_install_easyengine() {
