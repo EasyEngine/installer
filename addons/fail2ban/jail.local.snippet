@@ -1,6 +1,6 @@
-[rtcamp-nginx-req-limit]
+[easyengine-nginx-req-limit]
 enabled = true
-filter = rtcamp-nginx-req-limit
+filter = easyengine-nginx-req-limit
 action = iptables-multiport[name=ReqLimit, port="http,https", protocol=tcp]
 logpath = /opt/easyengine/sites/*/logs/nginx/error.log
 findtime = 600
