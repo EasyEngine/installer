@@ -306,3 +306,29 @@ function pull_easyengine_images() {
   ee_log_info1 "Pulling EasyEngine docker images"
   "$EE4_BINARY" cli info
 }
+
+function install_addons() {
+  install_fail2ban
+}
+
+function install_fail2ban() {
+
+  if ! command -v lsb_release >/dev/null 2>&1; then
+    return
+  fi
+  # Only configure fail2ban if Ubuntu/Debain distro is detected.
+  distro=$(lsb_release -i | cut -d: -f2 | sed s/'^\t'//)
+  if [[ 'Ubuntu' == "$distro" ]] || [[ 'Debian' == "$distro" ]]; then
+    # Check if fail2ban exists. If not install it.
+    if ! command -v fail2ban >/dev/null 2>&1; then
+      # Running standard docker installation.
+      ee_log_info1 "Installing fail2ban"
+      apt install fail2ban -y
+      wget -O /etc/fail2ban/filter.d/rtcamp-nginx-req-limit.conf https://raw.githubusercontent.com/EasyEngine/installer/master/addons/fail2ban/rtcamp-nginx-req-limit.conf
+      cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+      wget -O - https://raw.githubusercontent.com/EasyEngine/installer/master/addons/fail2ban/jail.local.snippet >> /etc/fail2ban/jail.local
+      service fail2ban restart
+      ee_log_info1 "fail2ban configured"
+    fi
+  fi
+}

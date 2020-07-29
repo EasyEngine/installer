@@ -42,6 +42,8 @@ function do_install() {
   download_and_install_easyengine
   ee_log_info1 "Pulling EasyEngine docker images"
   pull_easyengine_images
+  ee_log_info1 "Installing addons"
+  install_addons
   ee_log_info1 "Run \"ee help site\" for more information on how to create a site."
 }
 
