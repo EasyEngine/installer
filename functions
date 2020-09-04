@@ -217,8 +217,8 @@ function setup_php() {
       # Adding ondrej/php repository for installing php, this works for all ubuntu flavours.
       add-apt-repository -y ppa:ondrej/php
       apt-get update
-      # Installing php-cli, which is the minimum requirement to run EasyEngine
-      apt-get -y install php7.3-cli
+      # Installing php extensions, which are the minimum requirement to run EasyEngine
+      apt-get install -y php7.3-cli php7.3-xml php7.3-mbstring
     elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
       ee_log_info1 "Installing PHP cli"
       # Nobody should have to change their name to enable a package installation
@@ -230,7 +230,7 @@ function setup_php() {
       wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
       echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
       apt-get update
-      apt-get install php7.3-cli -y
+      apt-get install -y php7.3-cli php7.3-xml php7.3-mbstring
     fi
   fi
 }
