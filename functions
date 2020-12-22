@@ -306,3 +306,22 @@ function pull_easyengine_images() {
   ee_log_info1 "Pulling EasyEngine docker images"
   "$EE4_BINARY" cli info
 }
+
+function add_ssl_renew_cron() {
+  set -o noglob
+  
+  SSL_RENEW_CRON="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n\n0 0 * * * /usr/local/bin/ee site ssl-renew --all >> /opt/easyengine/logs/cron.log 2>&1"
+  # Check if cron is installed in the system.
+  which cron && which crontab
+
+  if [ $? -eq 0 ]
+  then
+    ee_log_info1 "Adding ssl-renew cron"
+    crontab -l > ee_cron
+    echo -e $SSL_RENEW_CRON >> ee_cron
+    crontab ee_cron
+    rm ee_cron
+  fi
+  
+  set +o noglob
+}
