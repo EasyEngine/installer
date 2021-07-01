@@ -321,7 +321,6 @@ function install_fail2ban() {
   if [[ 'Ubuntu' == "$distro" ]] || [[ 'Debian' == "$distro" ]]; then
     # Check if fail2ban exists. If not install it.
     if ! command -v fail2ban >/dev/null 2>&1; then
-      # Running standard docker installation.
       ee_log_info1 "Installing fail2ban"
       apt install fail2ban -y
       wget -O /etc/fail2ban/filter.d/rtcamp-nginx-req-limit.conf https://raw.githubusercontent.com/EasyEngine/installer/master/addons/fail2ban/rtcamp-nginx-req-limit.conf
