@@ -8,9 +8,11 @@ EE_ROOT_DIR="/opt/easyengine"
 readonly LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 
 function setup_host_dependencies() {
-    if ! command -v ip >> $LOG_FILE 2>&1; then
-      echo "Installing iproute2"
-      apt update && apt install iproute2 -y
+    if [ "$ee_linux_distro" == "Ubuntu" ] || [ "$ee_linux_distro" == "Debian" ]; then
+      if ! command -v ip >> $LOG_FILE 2>&1; then
+        echo "Installing iproute2"
+        apt update && apt install iproute2 -y
+      fi
     fi
 }
 
