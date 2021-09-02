@@ -7,6 +7,13 @@ readonly ee_linux_distro=$(lsb_release -i | awk '{print $3}')
 EE_ROOT_DIR="/opt/easyengine"
 readonly LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 
+function setup_host_dependencies() {
+    if ! command -v ip >> $LOG_FILE 2>&1; then
+      echo "Installing iproute2"
+      apt update && apt install iproute2 -y
+    fi
+}
+
 function setup_docker() {
     # Check if docker exists. If not start docker installation.
     if ! command -v docker >> $LOG_FILE 2>&1; then
@@ -72,6 +79,7 @@ function setup_php_modules {
 }
 
 function setup_dependencies {
+    setup_host_dependencies
     setup_docker
     setup_php
     setup_php_modules
