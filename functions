@@ -273,7 +273,7 @@ function check_swap() {
 }
 
 function setup_host_dependencies() {
-    if [ "$ee_linux_distro" == "Ubuntu" ] || [ "$ee_linux_distro" == "Debian" ]; then
+    if [ "$EE_LINUX_DISTRO" == "Ubuntu" ] || [ "$EE_LINUX_DISTRO" == "Debian" ]; then
       if ! command -v ip >> $LOG_FILE 2>&1; then
         echo "Installing iproute2"
         apt update && apt install iproute2 -y
