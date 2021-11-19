@@ -208,7 +208,7 @@ function setup_php() {
       apt-get install -y software-properties-common
       # Adding ondrej/php repository for installing php, this works for all ubuntu flavours.
       add-apt-repository -y ppa:ondrej/php
-      apt-get update
+      apt-get update && apt-get upgrade
       # Installing php-cli, which is the minimum requirement to run EasyEngine
       apt-get -y install php8.0-cli
     elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
