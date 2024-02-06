@@ -220,7 +220,7 @@ function setup_php() {
       export LC_ALL=en_US.UTF-8
       export LANG=en_US.UTF-8
       wget -qO - https://packages.sury.org/php/apt.gpg | sudo gpg --dearmor -o /usr/share/keyrings/php.gpg
-      echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
+      echo "deb [signed-by=/usr/share/keyrings/php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
       apt-get update
       apt-get install php8.0-cli -y
     fi
