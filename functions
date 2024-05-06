@@ -210,7 +210,7 @@ function setup_php() {
       add-apt-repository -y ppa:ondrej/php
       apt-get update && apt-get -y upgrade
       # Installing php-cli, which is the minimum requirement to run EasyEngine
-      apt-get -y install php8.0-cli
+      apt-get -y install php8.3-cli
     elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
       ee_log_info1 "Installing PHP cli"
       # Nobody should have to change their name to enable a package installation
@@ -222,7 +222,7 @@ function setup_php() {
       wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
       echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
       apt-get update
-      apt-get install php8.0-cli -y
+      apt-get install php8.3-cli -y
     fi
   fi
 }
