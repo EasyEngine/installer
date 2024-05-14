@@ -193,7 +193,7 @@ function setup_docker() {
   # Check if docker-compose exists. If not start docker-compose installation.
   if ! command -v docker-compose >/dev/null 2>&1; then
     ee_log_info1 "Installing Docker-Compose"
-    curl -L https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+    curl -L https://github.com/docker/compose/releases/download/v2.27.0/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
   fi
 }
