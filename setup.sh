@@ -19,7 +19,7 @@ function bootstrap() {
     if ! command -v wget > /dev/null 2>&1; then
       packages="${packages} wget"
     fi
-    apt update && apt-get install $packages -y
+    apt-get update && apt-get install $packages -y
   fi
 
   local functions_url="https://raw.githubusercontent.com/EasyEngine/installer/master/functions"

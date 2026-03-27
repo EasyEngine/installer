@@ -233,7 +233,7 @@ function setup_php_extensions() {
   if command -v php >/dev/null 2>&1; then
     php_extensions=(curl sqlite3 zip)
     if ! command -v gawk >/dev/null 2>&1; then
-      apt install gawk -y
+      apt-get install gawk -y
     fi
     # Reading the php version.
     default_php_version="$(readlink -f /usr/bin/php | gawk -F "php" '{ print $2}')"
@@ -247,8 +247,10 @@ function setup_php_extensions() {
       else
         ee_log_info1 "$module is already installed"
       fi
-      apt install -y $packages
     done
+    if [ -n "$packages" ]; then
+      apt-get install -y $packages
+    fi
   fi
 }
 
@@ -275,17 +277,24 @@ function check_swap() {
 function setup_host_dependencies() {
     if [ "$EE_LINUX_DISTRO" == "Ubuntu" ] || [ "$EE_LINUX_DISTRO" == "Debian" ]; then
       if ! command -v ip >> $LOG_FILE 2>&1; then
-        echo "Installing iproute2"
-        apt update && apt install iproute2 -y
+        ee_log_info2 "Installing iproute2"
+        apt-get install iproute2 -y
       fi
     fi
 }
 
 function check_depdendencies() {
   ee_log_info1 "Checking dependencies"
+
+  # Run apt update once upfront so that all subsequent apt install calls
+  # can find their packages.  On a freshly booted machine the apt cache
+  # is typically empty and installs would fail without this.
+  ee_log_info2 "Updating apt cache"
+  apt-get update
+
   if ! command -v sqlite3 >/dev/null 2>&1; then
     ee_log_info2 "Installing sqlite3"
-    apt install sqlite3 -y
+    apt-get install sqlite3 -y
   fi
 
   setup_host_dependencies
