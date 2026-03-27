@@ -62,7 +62,7 @@ EOF
 
 }
 
-function check_depdendencies_remote() {
+function check_dependencies_remote() {
   ee_log_info1 "Checking dependencies"
 
   run_remote_command "command -v sqlite3 > /dev/null 2>&1"
@@ -78,7 +78,7 @@ function check_depdendencies_remote() {
 
 function run_checks_remote() {
 
-  check_depdendencies
+  check_dependencies
 
   # Check if ee executable exists
   if command -v ee >/dev/null 2>&1; then

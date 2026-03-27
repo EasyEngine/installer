@@ -97,7 +97,7 @@ function run_ee4_sites_8080() {
     ee_log_fail "Script will continue after staging acknowledgement."
   fi
 
-  check_depdendencies
+  check_dependencies
 
   ee_log_info2 "Downlading EasyEngine v4"
   download_and_install_easyengine ee4
