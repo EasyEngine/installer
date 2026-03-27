@@ -319,7 +319,13 @@ function download_and_install_easyengine() {
   # bypassing RETURN traps). The trap RETURN below is a belt-and-suspenders
   # catch for any unexpected early exits caused by set -e.
   _ee_download_cleanup() {
-    rm -f "$tmp_phar" "$tmp_checksum"
+    rm -f "${tmp_phar:-}" "${tmp_checksum:-}"
+    # Unregister this trap so it doesn't fire again when a later function
+    # returns (bash does not scope nested function definitions, so
+    # _ee_download_cleanup remains in the environment after this function
+    # exits and the RETURN trap would otherwise re-fire with tmp_phar and
+    # tmp_checksum out of scope, causing "unbound variable" under set -u).
+    trap - RETURN
   }
   trap '_ee_download_cleanup' RETURN
 
