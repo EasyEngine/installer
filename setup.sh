@@ -4,6 +4,9 @@ set -euo pipefail
 export EE_ROOT_DIR="/opt/easyengine"
 export EE4_BINARY="/usr/local/bin/ee"
 export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
+# Ensure EE_QUIET_OUTPUT is always defined so that set -u does not cause
+# "unbound variable" errors when the sourced functions file checks it.
+export EE_QUIET_OUTPUT="${EE_QUIET_OUTPUT:-}"
 
 # Create a temp directory for downloaded helper files and clean it on exit.
 TMP_WORK_DIR="$(mktemp -d /tmp/ee-installer.XXXXXX)"
