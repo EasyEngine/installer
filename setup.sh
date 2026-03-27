@@ -37,7 +37,7 @@ function bootstrap() {
 # Main installation function, to setup and run once the installer script is loaded.
 function do_install() {
   mkdir -p /opt/easyengine/logs
-  touch $LOG_FILE
+  touch "$LOG_FILE"
 
   # Open standard out at `$LOG_FILE` for write.
   # Write to file as well as terminal
@@ -49,14 +49,15 @@ function do_install() {
   exec 2>&1
 
   # Detect Linux distro here (after log setup) so any failure is caught and logged.
-  export EE_LINUX_DISTRO=$(lsb_release -i 2>/dev/null | awk '{print $3}' || true)
+  EE_LINUX_DISTRO=$(lsb_release -i 2>/dev/null | awk '{print $3}' || true)
+  export EE_LINUX_DISTRO
 
   # Creating EasyEngine parent directory for log file.
   bootstrap
   source "$TMP_WORK_DIR/helper-functions"
 
 
-  check_depdendencies
+  check_dependencies
   ee_log_info1 "Setting up EasyEngine"
   download_and_install_easyengine
   ee_log_info1 "Pulling EasyEngine docker images"

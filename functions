@@ -283,7 +283,7 @@ function setup_host_dependencies() {
     fi
 }
 
-function check_depdendencies() {
+function check_dependencies() {
   ee_log_info1 "Checking dependencies"
 
   # Run apt update once upfront so that all subsequent apt install calls
