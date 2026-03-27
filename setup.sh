@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Looking up linux distro and declaring it globally.
-export EE_LINUX_DISTRO=$(lsb_release -i | awk '{print $3}')
 export EE_ROOT_DIR="/opt/easyengine"
 export EE4_BINARY="/usr/local/bin/ee"
 export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
+
+# Create a temp directory for downloaded helper files and clean it on exit.
+TMP_WORK_DIR="$(mktemp -d /tmp/ee-installer.XXXXXX)"
+export TMP_WORK_DIR
+trap 'rm -rf "$TMP_WORK_DIR"' EXIT
 
 function bootstrap() {
   if ! command -v curl > /dev/null 2>&1; then
@@ -42,6 +45,9 @@ function do_install() {
   # out goes (the file and terminal).
   exec 2>&1
 
+  # Detect Linux distro here (after log setup) so any failure is caught and logged.
+  export EE_LINUX_DISTRO=$(lsb_release -i 2>/dev/null | awk '{print $3}' || true)
+
   # Creating EasyEngine parent directory for log file.
   bootstrap
   source "$TMP_WORK_DIR/helper-functions"
@@ -54,7 +60,6 @@ function do_install() {
   pull_easyengine_images
   add_ssl_renew_cron
   ee_log_info1 "Run \"ee help site\" for more information on how to create a site."
-  rm /helper-functions
 }
 
 # Invoking the main installation function.

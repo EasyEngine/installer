@@ -305,10 +305,12 @@ function download_and_install_easyengine() {
   local tmp_checksum
   tmp_checksum="$(mktemp /tmp/easyengine.phar.sha512.XXXXXX)"
 
-  # Cleanup helper — removes temp files on any exit from this function.
+  # Cleanup helper — removes temp files unconditionally when the function returns.
   _ee_download_cleanup() {
     rm -f "$tmp_phar" "$tmp_checksum"
   }
+  # Register cleanup on any exit from this function (normal, error, or set -e).
+  trap '_ee_download_cleanup' RETURN
 
   # Download the phar to a temp file.
   # --fail: exit non-zero on HTTP 4xx/5xx (prevents saving an error page as the binary).
@@ -332,14 +334,17 @@ function download_and_install_easyengine() {
 
   ee_log_info1 "Verifying EasyEngine phar checksum"
 
-  # Compare hashes directly (the checksum file contains a plain hex hash string).
+  # Use awk to extract the first field so this works with both a plain hex hash
+  # and the standard sha512sum output format ('<hash>  <filename>').
   local expected_hash
-  expected_hash="$(cat "$tmp_checksum" | tr -d '[:space:]')"
+  expected_hash="$(awk '{print $1}' "$tmp_checksum")"
+  if [ -z "$expected_hash" ]; then
+    ee_log_fail "ERROR: Checksum file is empty or invalid. Aborting installation."
+  fi
   local actual_hash
   actual_hash="$(sha512sum "$tmp_phar" | awk '{print $1}')"
 
   if [ "$expected_hash" != "$actual_hash" ]; then
-    _ee_download_cleanup
     ee_log_fail "ERROR: EasyEngine phar checksum mismatch! The downloaded file may be corrupt or tampered with. Aborting installation."
   fi
 
@@ -348,8 +353,7 @@ function download_and_install_easyengine() {
   # Move verified phar into place and make it executable.
   mv "$tmp_phar" "$EE4_BINARY"
   chmod +x "$EE4_BINARY"
-
-  _ee_download_cleanup
+  # trap will call _ee_download_cleanup on RETURN
 }
 
 function pull_easyengine_images() {
