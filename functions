@@ -312,26 +312,27 @@ function download_and_install_easyengine() {
 
   # Download the phar to a temp file.
   # --fail: exit non-zero on HTTP 4xx/5xx (prevents saving an error page as the binary).
-  if ! wget --fail --quiet -O "$tmp_phar" "$phar_url"; then
+  # --location: follow redirects.
+  if ! curl --fail --location --silent --show-error --output "$tmp_phar" "$phar_url"; then
     _ee_download_cleanup
     ee_log_fail "ERROR: Failed to download EasyEngine phar from $phar_url. Check your network connection or try again later."
   fi
 
-  # Verify the file is not empty (second guard against silent curl/wget failures).
+  # Verify the file is not empty (second guard against silent download failures).
   if [ ! -s "$tmp_phar" ]; then
     _ee_download_cleanup
     ee_log_fail "ERROR: Downloaded EasyEngine phar is empty. Aborting installation."
   fi
 
   # Download the SHA-512 checksum file.
-  if ! wget --fail --quiet -O "$tmp_checksum" "$checksum_url"; then
+  if ! curl --fail --location --silent --show-error --output "$tmp_checksum" "$checksum_url"; then
     _ee_download_cleanup
     ee_log_fail "ERROR: Failed to download EasyEngine checksum from $checksum_url. Aborting installation."
   fi
 
   ee_log_info1 "Verifying EasyEngine phar checksum"
 
-  # sha512sum expects '<hash>  <filename>' format; build it from the raw hash file.
+  # Compare hashes directly (the checksum file contains a plain hex hash string).
   local expected_hash
   expected_hash="$(cat "$tmp_checksum" | tr -d '[:space:]')"
   local actual_hash
