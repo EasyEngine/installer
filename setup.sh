@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# Looking up linux distro and declaring it globally.
-export EE_LINUX_DISTRO=$(lsb_release -i | awk '{print $3}')
 export EE_ROOT_DIR="/opt/easyengine"
 export EE4_BINARY="/usr/local/bin/ee"
 export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
+# Ensure EE_QUIET_OUTPUT is always defined so that set -u does not cause
+# "unbound variable" errors when the sourced functions file checks it.
+export EE_QUIET_OUTPUT="${EE_QUIET_OUTPUT:-}"
+
+# Create a temp directory for downloaded helper files and clean it on exit.
+TMP_WORK_DIR="$(mktemp -d /tmp/ee-installer.XXXXXX)"
+export TMP_WORK_DIR
+trap 'rm -rf "$TMP_WORK_DIR"' EXIT
 
 function bootstrap() {
   if ! command -v curl > /dev/null 2>&1; then
@@ -15,7 +22,16 @@ function bootstrap() {
     apt update && apt-get install $packages -y
   fi
 
-  curl -so "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
+  local functions_url="https://raw.githubusercontent.com/EasyEngine/installer/master/functions"
+  if ! curl --fail --silent --show-error --output "$TMP_WORK_DIR/helper-functions" "$functions_url"; then
+    echo "ERROR: Failed to download EasyEngine installer functions from $functions_url. Check your network and try again." >&2
+    exit 1
+  fi
+
+  if [ ! -s "$TMP_WORK_DIR/helper-functions" ]; then
+    echo "ERROR: Downloaded installer functions file is empty. Aborting." >&2
+    exit 1
+  fi
 }
 
 # Main installation function, to setup and run once the installer script is loaded.
@@ -32,6 +48,9 @@ function do_install() {
   # out goes (the file and terminal).
   exec 2>&1
 
+  # Detect Linux distro here (after log setup) so any failure is caught and logged.
+  export EE_LINUX_DISTRO=$(lsb_release -i 2>/dev/null | awk '{print $3}' || true)
+
   # Creating EasyEngine parent directory for log file.
   bootstrap
   source "$TMP_WORK_DIR/helper-functions"
@@ -44,7 +63,6 @@ function do_install() {
   pull_easyengine_images
   add_ssl_renew_cron
   ee_log_info1 "Run \"ee help site\" for more information on how to create a site."
-  rm /helper-functions
 }
 
 # Invoking the main installation function.
