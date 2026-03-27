@@ -382,12 +382,11 @@ function add_ssl_renew_cron() {
   [[ ":$PATH:" != *":/usr/local/bin:"* ]] && PATH="/usr/local/bin:${PATH}"
   SSL_RENEW_CRON="PATH=$PATH\n\n0 0 * * * /usr/local/bin/ee site ssl-renew --all >> /opt/easyengine/logs/cron.log 2>&1"
   # Check if cron is installed in the system.
-  which cron && which crontab
-
-  if [ $? -eq 0 ]
-  then
+  if which cron > /dev/null 2>&1 && which crontab > /dev/null 2>&1; then
     ee_log_info1 "Adding ssl-renew cron"
-    crontab -l > ee_cron
+    # crontab -l exits 1 when no crontab exists; suppress that so set -e
+    # does not abort the script on a fresh machine.
+    crontab -l 2>/dev/null > ee_cron || true
     echo -e $SSL_RENEW_CRON >> ee_cron
     crontab ee_cron
     rm ee_cron
