@@ -309,10 +309,8 @@ function download_and_install_easyengine() {
 
   local phar_url="https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar"
   local checksum_url="${phar_url}.sha512"
-  local tmp_phar
-  tmp_phar="$(mktemp /tmp/easyengine.phar.XXXXXX)"
-  local tmp_checksum
-  tmp_checksum="$(mktemp /tmp/easyengine.phar.sha512.XXXXXX)"
+  local tmp_phar; tmp_phar="$(mktemp /tmp/easyengine.phar.XXXXXX)"
+  local tmp_checksum; tmp_checksum="$(mktemp /tmp/easyengine.phar.sha512.XXXXXX)"
 
   # Cleanup helper — removes temp files.
   # Explicit calls are used before every ee_log_fail (which calls "exit 1",
