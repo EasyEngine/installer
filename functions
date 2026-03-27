@@ -297,10 +297,58 @@ function check_depdendencies() {
 
 function download_and_install_easyengine() {
   ee_log_info1 "Downloading EasyEngine phar"
-  # Download EasyEngine phar.
-  wget -O "$EE4_BINARY" https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar
-  # Make it executable.
+
+  local phar_url="https://raw.githubusercontent.com/EasyEngine/easyengine-builds/master/phar/easyengine.phar"
+  local checksum_url="${phar_url}.sha512"
+  local tmp_phar
+  tmp_phar="$(mktemp /tmp/easyengine.phar.XXXXXX)"
+  local tmp_checksum
+  tmp_checksum="$(mktemp /tmp/easyengine.phar.sha512.XXXXXX)"
+
+  # Cleanup helper — removes temp files on any exit from this function.
+  _ee_download_cleanup() {
+    rm -f "$tmp_phar" "$tmp_checksum"
+  }
+
+  # Download the phar to a temp file.
+  # --fail: exit non-zero on HTTP 4xx/5xx (prevents saving an error page as the binary).
+  if ! wget --fail --quiet -O "$tmp_phar" "$phar_url"; then
+    _ee_download_cleanup
+    ee_log_fail "ERROR: Failed to download EasyEngine phar from $phar_url. Check your network connection or try again later."
+  fi
+
+  # Verify the file is not empty (second guard against silent curl/wget failures).
+  if [ ! -s "$tmp_phar" ]; then
+    _ee_download_cleanup
+    ee_log_fail "ERROR: Downloaded EasyEngine phar is empty. Aborting installation."
+  fi
+
+  # Download the SHA-512 checksum file.
+  if ! wget --fail --quiet -O "$tmp_checksum" "$checksum_url"; then
+    _ee_download_cleanup
+    ee_log_fail "ERROR: Failed to download EasyEngine checksum from $checksum_url. Aborting installation."
+  fi
+
+  ee_log_info1 "Verifying EasyEngine phar checksum"
+
+  # sha512sum expects '<hash>  <filename>' format; build it from the raw hash file.
+  local expected_hash
+  expected_hash="$(cat "$tmp_checksum" | tr -d '[:space:]')"
+  local actual_hash
+  actual_hash="$(sha512sum "$tmp_phar" | awk '{print $1}')"
+
+  if [ "$expected_hash" != "$actual_hash" ]; then
+    _ee_download_cleanup
+    ee_log_fail "ERROR: EasyEngine phar checksum mismatch! The downloaded file may be corrupt or tampered with. Aborting installation."
+  fi
+
+  ee_log_info1 "Checksum verified. Installing EasyEngine"
+
+  # Move verified phar into place and make it executable.
+  mv "$tmp_phar" "$EE4_BINARY"
   chmod +x "$EE4_BINARY"
+
+  _ee_download_cleanup
 }
 
 function pull_easyengine_images() {

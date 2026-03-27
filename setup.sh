@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Looking up linux distro and declaring it globally.
 export EE_LINUX_DISTRO=$(lsb_release -i | awk '{print $3}')
@@ -15,7 +16,16 @@ function bootstrap() {
     apt update && apt-get install $packages -y
   fi
 
-  curl -so "$TMP_WORK_DIR/helper-functions" https://raw.githubusercontent.com/EasyEngine/installer/master/functions
+  local functions_url="https://raw.githubusercontent.com/EasyEngine/installer/master/functions"
+  if ! curl --fail --silent --show-error --output "$TMP_WORK_DIR/helper-functions" "$functions_url"; then
+    echo "ERROR: Failed to download EasyEngine installer functions from $functions_url. Check your network and try again." >&2
+    exit 1
+  fi
+
+  if [ ! -s "$TMP_WORK_DIR/helper-functions" ]; then
+    echo "ERROR: Downloaded installer functions file is empty. Aborting." >&2
+    exit 1
+  fi
 }
 
 # Main installation function, to setup and run once the installer script is loaded.
