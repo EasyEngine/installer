@@ -8,6 +8,11 @@ export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 # "unbound variable" errors when the sourced functions file checks it.
 export EE_QUIET_OUTPUT="${EE_QUIET_OUTPUT:-}"
 
+# Run apt/dpkg non-interactively so package installation never blocks on a
+# debconf or needrestart prompt during an unattended setup.
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 # Create a temp directory for downloaded helper files and clean it on exit.
 TMP_WORK_DIR="$(mktemp -d /tmp/ee-installer.XXXXXX)"
 export TMP_WORK_DIR
