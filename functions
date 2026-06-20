@@ -198,32 +198,157 @@ function setup_docker() {
   fi
 }
 
+# Host PHP version control. EE_PHP_VERSION pins an exact <major.minor> (fails
+# loudly if it can't be installed cleanly). When unset, EE_PHP_VERSION_CHOICES
+# is tried version-first: each version from native repos then the ondrej/sury
+# repo, before the next.
+EE_PHP_VERSION="${EE_PHP_VERSION:-}"
+EE_PHP_VERSION_CHOICES="${EE_PHP_VERSION_CHOICES:-8.4 8.3 8.5 8.2}"
+EE_INSTALLED_PHP_VERSION="${EE_INSTALLED_PHP_VERSION:-}"
+EE_PHP_THIRDPARTY_ADDED="${EE_PHP_THIRDPARTY_ADDED:-}"
+
+# HTTP status of the ondrej/php PPA Release file for an Ubuntu codename (200/404).
+get_ondrej_php_ppa_release_status() {
+  local ubuntu_codename="$1"
+  curl --location --silent --output /dev/null --write-out "%{http_code}" \
+    --connect-timeout 5 --max-time 10 \
+    "https://ppa.launchpadcontent.net/ondrej/php/ubuntu/dists/${ubuntu_codename}/Release" || true
+}
+
+# 0 if php<ver>-cli installs cleanly from current sources. Dry-run (-s) so
+# unsatisfiable deps (e.g. a PPA build needing a libxml2 the OS lacks) are caught
+# before touching the system.
+ee_php_cli_installable() {
+  apt-get install -s "php${1}-cli" >/dev/null 2>&1
+}
+
+# Add the third-party PHP repo (ondrej/php on Ubuntu, sury on Debian), pinned to
+# a codename the repo actually publishes for. Idempotent.
+ee_php_add_thirdparty_repo() {
+  [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] && return 0
+  if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
+    apt-get install -y software-properties-common curl ca-certificates
+    add-apt-repository -y ppa:ondrej/php || true
+    local want use="" c f
+    want="$(lsb_release -sc)"
+    if [ "$(get_ondrej_php_ppa_release_status "$want")" == "200" ]; then
+      use="$want"
+    else
+      for c in oracular noble jammy focal; do
+        if [ "$(get_ondrej_php_ppa_release_status "$c")" == "200" ]; then
+          use="$c"; break
+        fi
+      done
+      [ -n "$use" ] && ee_log_info2 "ondrej/php has no build for '${want}'; pinning PPA to '${use}'"
+      for f in /etc/apt/sources.list.d/ondrej-ubuntu-php-*.sources; do
+        [ -f "$f" ] && sed -i "s/^Suites: .*/Suites: ${use}/" "$f"
+      done
+    fi
+    # No serveable codename → drop the source so it can't 404 later, and fail.
+    if [ -z "$use" ]; then
+      rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php*
+      return 1
+    fi
+  elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
+    apt-get install -y apt-transport-https lsb-release ca-certificates curl locales locales-all
+    export LC_ALL=en_US.UTF-8
+    export LANG=en_US.UTF-8
+    curl -fsSL https://packages.sury.org/php/apt.gpg -o /etc/apt/trusted.gpg.d/php.gpg
+    echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list
+  fi
+  apt-get update
+  EE_PHP_THIRDPARTY_ADDED=1
+  return 0
+}
+
+# Remove the ondrej/php PPA we added and refresh apt.
+ee_php_drop_thirdparty_repo() {
+  [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] || return 0
+  if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
+    rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php* /etc/apt/preferences.d/ee-ondrej-php
+    apt-get update
+    EE_PHP_THIRDPARTY_ADDED=""
+  fi
+}
+
+# Install the first candidate that installs cleanly, version-first. Native
+# installability is snapshotted BEFORE adding the PPA: once ondrej is present its
+# newer build of a natively-available version (e.g. php8.5 on 26.04) shadows the
+# native one and fails to install, so native versions are taken with the PPA
+# dropped. Sets EE_INSTALLED_PHP_VERSION; returns 0 on success.
+ee_select_and_install_php() {
+  local v native_ok=" "
+  for v in "$@"; do
+    if ee_php_cli_installable "$v"; then
+      native_ok="${native_ok}${v} "
+    fi
+  done
+
+  for v in "$@"; do
+    if [[ "$native_ok" == *" ${v} "* ]]; then
+      # Native: drop any probe PPA so it isn't shadowed.
+      ee_php_drop_thirdparty_repo
+      ee_log_info2 "Installing PHP ${v} (native)"
+      apt-get install -y "php${v}-cli"
+      EE_INSTALLED_PHP_VERSION="$v"
+      return 0
+    fi
+    if ee_php_add_thirdparty_repo && ee_php_cli_installable "$v"; then
+      ee_log_info2 "Installing PHP ${v} (third-party repo)"
+      apt-get install -y "php${v}-cli"
+      EE_INSTALLED_PHP_VERSION="$v"
+      return 0
+    fi
+    ee_log_info2 "PHP ${v} not cleanly installable (native or third-party); trying next"
+  done
+  return 1
+}
+
 function setup_php() {
   ee_log_info1 "Installing PHP"
-  if ! command -v php >/dev/null 2>&1; then
-    # Checking linux distro. Currently only Ubuntu and Debian are supported.
-    if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
-      ee_log_info1 "Installing PHP cli"
-      # Adding software-properties-common for add-apt-repository.
-      apt-get install -y software-properties-common
-      # Adding ondrej/php repository for installing php, this works for all ubuntu flavours.
-      add-apt-repository -y ppa:ondrej/php
-      apt-get update && apt-get -y upgrade
-      # Installing php-cli, which is the minimum requirement to run EasyEngine
-      apt-get -y install php8.3-cli
-    elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
-      ee_log_info1 "Installing PHP cli"
-      # Nobody should have to change their name to enable a package installation
-      # https://github.com/oerdnj/deb.sury.org/issues/56#issuecomment-166077158
-      # That's why we're installing the locales package.
-      apt-get install apt-transport-https lsb-release ca-certificates locales locales-all -y
-      export LC_ALL=en_US.UTF-8
-      export LANG=en_US.UTF-8
-      wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
-      echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/php.list
-      apt-get update
-      apt-get install php8.3-cli -y
+
+  # Only Ubuntu and Debian are supported for host-PHP install.
+  if [ "$EE_LINUX_DISTRO" != "Ubuntu" ] && [ "$EE_LINUX_DISTRO" != "Debian" ]; then
+    return 0
+  fi
+
+  local candidates
+  if [ -n "$EE_PHP_VERSION" ]; then
+    candidates="$EE_PHP_VERSION"
+    ee_log_info2 "PHP version pinned via EE_PHP_VERSION=${EE_PHP_VERSION}"
+  elif command -v php >/dev/null 2>&1; then
+    # Keep an existing php unless a version was pinned.
+    EE_INSTALLED_PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
+    ee_log_info2 "Existing PHP ${EE_INSTALLED_PHP_VERSION} detected; keeping it (set EE_PHP_VERSION to override)"
+    return 0
+  else
+    candidates="$EE_PHP_VERSION_CHOICES"
+    ee_log_info2 "No PHP pinned; trying in order (version-first): ${candidates}"
+  fi
+
+  apt-get update
+  ee_select_and_install_php $candidates || true
+
+  # Unpinned fallback: distro default php-cli, so an unknown OS still gets a php.
+  if [ -z "$EE_INSTALLED_PHP_VERSION" ] && [ -z "$EE_PHP_VERSION" ]; then
+    if apt-get install -y php-cli && command -v php >/dev/null 2>&1; then
+      EE_INSTALLED_PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
+      [ -n "$EE_INSTALLED_PHP_VERSION" ] && ee_log_info2 "Fell back to distro default php-cli (${EE_INSTALLED_PHP_VERSION})"
     fi
+  fi
+
+  if [ -z "$EE_INSTALLED_PHP_VERSION" ]; then
+    # Don't leave a probe PPA behind on the loud-failure path.
+    ee_php_drop_thirdparty_repo
+    echo "ERROR: Could not install a usable PHP CLI (tried: ${candidates}) on $(lsb_release -ds 2>/dev/null || echo "$EE_LINUX_DISTRO")." >&2
+    echo "       Set EE_PHP_VERSION=<major.minor> to a version your OS provides (e.g. EE_PHP_VERSION=8.5) and re-run." >&2
+    exit 1
+  fi
+  ee_log_info1 "Selected host PHP version: ${EE_INSTALLED_PHP_VERSION}"
+
+  # Make the chosen version the default `php`.
+  if command -v update-alternatives >/dev/null 2>&1 && [ -x "/usr/bin/php${EE_INSTALLED_PHP_VERSION}" ]; then
+    update-alternatives --set php "/usr/bin/php${EE_INSTALLED_PHP_VERSION}" >/dev/null 2>&1 || true
   fi
 }
 
@@ -235,8 +360,11 @@ function setup_php_extensions() {
     if ! command -v gawk >/dev/null 2>&1; then
       apt-get install gawk -y
     fi
-    # Reading the php version.
-    default_php_version="$(readlink -f /usr/bin/php | gawk -F "php" '{ print $2}')"
+    # Use the version setup_php installed; else detect from the `php` symlink.
+    default_php_version="${EE_INSTALLED_PHP_VERSION:-}"
+    if [ -z "$default_php_version" ]; then
+      default_php_version="$(readlink -f /usr/bin/php | gawk -F "php" '{ print $2}')"
+    fi
     ee_log_info1 "Installed PHP : $default_php_version"
     ee_log_info1 "Checking if required PHP modules are installed..."
     packages=""
@@ -285,6 +413,18 @@ function setup_host_dependencies() {
 
 function check_dependencies() {
   ee_log_info1 "Checking dependencies"
+
+  # Self-heal (adapted from the candidate script): a previous failed run may
+  # have left an ondrej/php source pinned to a codename this release no longer
+  # serves, which would 404 every apt-get update below. Drop it first.
+  if [ "$EE_LINUX_DISTRO" == "Ubuntu" ] && compgen -G "/etc/apt/sources.list.d/ondrej-ubuntu-php*" >/dev/null 2>&1; then
+    local host_codename
+    host_codename="$(lsb_release -sc 2>/dev/null || true)"
+    if [ "$(get_ondrej_php_ppa_release_status "$host_codename")" == "404" ]; then
+      ee_log_warn "Removing stale ondrej/php source (no release for '${host_codename:-unknown}')"
+      rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php*
+    fi
+  fi
 
   # Run apt update once upfront so that all subsequent apt install calls
   # can find their packages.  On a freshly booted machine the apt cache
