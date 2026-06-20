@@ -185,9 +185,10 @@ function setup_docker() {
   ee_log_info1 "Installing Docker"
   # Check if docker exists. If not start docker installation.
   if ! command -v docker >/dev/null 2>&1; then
-    # Running standard docker installation.
-    wget --quiet get.docker.com -O docker-setup.sh
-    sh docker-setup.sh
+    # Download into TMP_WORK_DIR so setup.sh's EXIT trap cleans it up on any
+    # exit path, instead of leaving docker-setup.sh behind in the CWD.
+    wget --quiet get.docker.com -O "$TMP_WORK_DIR/docker-setup"
+    sh "$TMP_WORK_DIR/docker-setup"
   fi
 
   # Check if docker-compose exists. If not start docker-compose installation.

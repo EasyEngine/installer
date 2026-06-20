@@ -18,6 +18,16 @@ TMP_WORK_DIR="$(mktemp -d /tmp/ee-installer.XXXXXX)"
 export TMP_WORK_DIR
 trap 'rm -rf "$TMP_WORK_DIR"' EXIT
 
+# Remember this script's path so it can delete itself after a successful
+# install (the `ee` from `wget -qO ee https://rt.cx/ee4 && bash ee`). Only when
+# run directly: BASH_SOURCE[0] equals $0 when executed, differs when sourced
+# (e.g. remote-migrate), and is empty when piped (`curl ... | bash`). Resolve
+# to an absolute path so a later `cd` can't strand it. EE_KEEP_INSTALLER=1 opts out.
+INSTALLER_SELF=""
+if [ -z "${EE_KEEP_INSTALLER:-}" ] && [ "${BASH_SOURCE[0]:-}" = "$0" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  INSTALLER_SELF="$(cd "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+fi
+
 function bootstrap() {
   if ! command -v curl > /dev/null 2>&1; then
     packages="curl"
@@ -80,3 +90,9 @@ function do_install() {
 
 # Invoking the main installation function.
 do_install
+
+# Reached only on success (set -e exits earlier on failure, leaving the file
+# for a retry). Remove the downloaded installer so it doesn't linger.
+if [ -n "$INSTALLER_SELF" ] && [ -f "$INSTALLER_SELF" ]; then
+  rm -f "$INSTALLER_SELF" || true
+fi
