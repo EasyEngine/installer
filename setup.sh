@@ -27,6 +27,13 @@ function bootstrap() {
     apt-get update && apt-get install $packages -y
   fi
 
+  # Use the locally patched functions file when present (set via EE_LOCAL_FUNCTIONS),
+  # otherwise fall back to downloading the upstream copy.
+  if [ -n "${EE_LOCAL_FUNCTIONS:-}" ] && [ -s "${EE_LOCAL_FUNCTIONS}" ]; then
+    cp "${EE_LOCAL_FUNCTIONS}" "$TMP_WORK_DIR/helper-functions"
+    return 0
+  fi
+
   local functions_url="https://raw.githubusercontent.com/EasyEngine/installer/master/functions"
   if ! curl --fail --silent --show-error --output "$TMP_WORK_DIR/helper-functions" "$functions_url"; then
     echo "ERROR: Failed to download EasyEngine installer functions from $functions_url. Check your network and try again." >&2
