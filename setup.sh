@@ -7,6 +7,19 @@ export LOG_FILE="$EE_ROOT_DIR/logs/install.log"
 # Ensure EE_QUIET_OUTPUT is always defined so that set -u does not cause
 # "unbound variable" errors when the sourced functions file checks it.
 export EE_QUIET_OUTPUT="${EE_QUIET_OUTPUT:-}"
+export EE_APT_LOCK_WAIT="${EE_APT_LOCK_WAIT:-}"
+
+# When EE_APT_LOCK_WAIT is set, wait for the dpkg/apt lock instead of
+# failing immediately.  Tier variables are left empty (no-op) when unset.
+if [ -n "$EE_APT_LOCK_WAIT" ]; then
+  _EE_APT_LOCK_UPDATE="-o DPkg::Lock::Timeout=900"
+  _EE_APT_LOCK_LIGHT_INSTALL="-o DPkg::Lock::Timeout=900"
+  _EE_APT_LOCK_INSTALL="-o DPkg::Lock::Timeout=1800"
+else
+  _EE_APT_LOCK_UPDATE=""
+  _EE_APT_LOCK_LIGHT_INSTALL=""
+  _EE_APT_LOCK_INSTALL=""
+fi
 
 # Run apt/dpkg non-interactively so package installation never blocks on a
 # debconf or needrestart prompt during an unattended setup.
@@ -34,7 +47,7 @@ function bootstrap() {
     if ! command -v wget > /dev/null 2>&1; then
       packages="${packages} wget"
     fi
-    apt-get update && apt-get install $packages -y
+    apt-get $_EE_APT_LOCK_UPDATE update && apt-get $_EE_APT_LOCK_LIGHT_INSTALL install $packages -y
   fi
 
   # Use the locally patched functions file when present (set via EE_LOCAL_FUNCTIONS),
