@@ -4,17 +4,29 @@
 # https://github.com/dokku/dokku/blob/master/plugins/common/functions
 
 # DPkg lock-wait tiers, activated by EE_APT_LOCK_WAIT.  Duplicated from
-# setup.sh so this file is self-contained when sourced by migrate.sh or
-# remote-migrate.
+# setup.sh so the tier vars stay defined (no-op) when this file is sourced
+# standalone by migrate.sh / remote-migrate — note those scripts' own
+# apt-get calls and remote (ssh) installs do not inherit the wait.
+# Any non-empty EE_APT_LOCK_WAIT (e.g. =1) enables the dpkg lock-wait; it is an
+# on/off flag, not a duration (the timeouts below are fixed).  Tier variables
+# are left empty (no-op) when unset.
 if [ -n "${EE_APT_LOCK_WAIT:-}" ]; then
-  _EE_APT_LOCK_UPDATE="-o DPkg::Lock::Timeout=900"
   _EE_APT_LOCK_LIGHT_INSTALL="-o DPkg::Lock::Timeout=900"
   _EE_APT_LOCK_INSTALL="-o DPkg::Lock::Timeout=1800"
 else
-  _EE_APT_LOCK_UPDATE="${_EE_APT_LOCK_UPDATE:-}"
   _EE_APT_LOCK_LIGHT_INSTALL="${_EE_APT_LOCK_LIGHT_INSTALL:-}"
   _EE_APT_LOCK_INSTALL="${_EE_APT_LOCK_INSTALL:-}"
 fi
+
+ee_apt_update() {
+  local i
+  for i in $(seq 1 30); do
+    apt-get update && return 0
+    ee_log_info2 "apt lists lock busy; retrying in 10s"
+    sleep 10
+  done
+  apt-get update
+}
 
 has_tty() {
   declare desc="return 0 if we have a tty"
@@ -233,7 +245,9 @@ get_ondrej_php_ppa_release_status() {
 # unsatisfiable deps (e.g. a PPA build needing a libxml2 the OS lacks) are caught
 # before touching the system.
 ee_php_cli_installable() {
-  apt-get $_EE_APT_LOCK_LIGHT_INSTALL install -s "php${1}-cli" >/dev/null 2>&1
+  # apt-get install -s uses Debug::NoLocking
+  #  
+  apt-get install -s "php${1}-cli" >/dev/null 2>&1
 }
 
 # Add the third-party PHP repo (ondrej/php on Ubuntu, sury on Debian), pinned to
@@ -242,7 +256,7 @@ ee_php_add_thirdparty_repo() {
   [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] && return 0
   if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
     apt-get $_EE_APT_LOCK_INSTALL install -y software-properties-common curl ca-certificates
-    add-apt-repository -y ppa:ondrej/php || true
+    (add-apt-repository -ny ppa:ondrej/php && ee_apt_update) || true
     local want use="" c f
     want="$(lsb_release -sc)"
     if [ "$(get_ondrej_php_ppa_release_status "$want")" == "200" ]; then
@@ -270,7 +284,7 @@ ee_php_add_thirdparty_repo() {
     curl -fsSL https://packages.sury.org/php/apt.gpg -o /etc/apt/trusted.gpg.d/php.gpg
     echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list
   fi
-  apt-get $_EE_APT_LOCK_UPDATE update
+  ee_apt_update
   EE_PHP_THIRDPARTY_ADDED=1
   return 0
 }
@@ -280,7 +294,7 @@ ee_php_drop_thirdparty_repo() {
   [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] || return 0
   if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
     rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php* /etc/apt/preferences.d/ee-ondrej-php
-    apt-get $_EE_APT_LOCK_UPDATE update
+    ee_apt_update
     EE_PHP_THIRDPARTY_ADDED=""
   fi
 }
@@ -340,7 +354,7 @@ function setup_php() {
     ee_log_info2 "No PHP pinned; trying in order (version-first): ${candidates}"
   fi
 
-  apt-get $_EE_APT_LOCK_UPDATE update
+  ee_apt_update
   ee_select_and_install_php $candidates || true
 
   # Unpinned fallback: distro default php-cli, so an unknown OS still gets a php.
@@ -444,7 +458,7 @@ function check_dependencies() {
   # can find their packages.  On a freshly booted machine the apt cache
   # is typically empty and installs would fail without this.
   ee_log_info2 "Updating apt cache"
-  apt-get $_EE_APT_LOCK_UPDATE update
+  ee_apt_update
 
   if ! command -v sqlite3 >/dev/null 2>&1; then
     ee_log_info2 "Installing sqlite3"
