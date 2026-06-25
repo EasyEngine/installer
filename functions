@@ -255,7 +255,7 @@ ee_php_add_thirdparty_repo() {
   [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] && return 0
   if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
     apt-get $_EE_APT_LOCK_INSTALL install -y software-properties-common curl ca-certificates
-    (add-apt-repository -ny ppa:ondrej/php && ee_apt_update) || true
+    add-apt-repository -ny ppa:ondrej/php || true
     local want use="" c f
     want="$(lsb_release -sc)"
     if [ "$(get_ondrej_php_ppa_release_status "$want")" == "200" ]; then
