@@ -245,8 +245,7 @@ get_ondrej_php_ppa_release_status() {
 # unsatisfiable deps (e.g. a PPA build needing a libxml2 the OS lacks) are caught
 # before touching the system.
 ee_php_cli_installable() {
-  # apt-get install -s uses Debug::NoLocking
-  #  
+  # -s (simulate) takes no dpkg lock, so a lock-wait option here would be a no-op
   apt-get install -s "php${1}-cli" >/dev/null 2>&1
 }
 
