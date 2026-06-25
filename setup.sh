@@ -23,15 +23,16 @@ fi
 # Defined here for bootstrap(); the functions file overrides with its own
 # copy (identical, but uses ee_log_info2 for logging).
 ee_apt_update() {
-  local i
+  local i err
   for i in $(seq 1 30); do
-    apt-get update && return 0
-    echo "=====> apt lists lock busy; retrying in 10s"
+    if err="$(apt-get update 2>&1)"; then printf '%s\n' "$err"; return 0; fi
+    printf '%s\n' "$err" >&2
+    printf '%s' "$err" | grep -qiE "Could not get lock|Unable to lock" || return 1
+    ee_log_info2 "apt lists lock busy; retrying in 10s"
     sleep 10
   done
   apt-get update
 }
-
 # Run apt/dpkg non-interactively so package installation never blocks on a
 # debconf or needrestart prompt during an unattended setup.
 export DEBIAN_FRONTEND=noninteractive
