@@ -21,14 +21,14 @@ fi
 
 # Retry-based apt-get update that tolerates a busy apt lists lock.
 # Defined here for bootstrap(); the functions file overrides with its own
-# copy (identical, but uses ee_log_info2 for logging).
+# copy.
 ee_apt_update() {
   local i err
   for i in $(seq 1 30); do
     if err="$(apt-get update 2>&1)"; then printf '%s\n' "$err"; return 0; fi
     printf '%s\n' "$err" >&2
     printf '%s' "$err" | grep -qiE "Could not get lock|Unable to lock" || return 1
-    ee_log_info2 "apt lists lock busy; retrying in 10s"
+    echo "=====> apt lists lock busy; retrying in 10s"
     sleep 10
   done
   apt-get update
