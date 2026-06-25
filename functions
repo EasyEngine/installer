@@ -3,6 +3,33 @@
 # These functions have been adapted from
 # https://github.com/dokku/dokku/blob/master/plugins/common/functions
 
+# DPkg lock-wait tiers, activated by EE_APT_LOCK_WAIT.  Duplicated from
+# setup.sh so the tier vars stay defined (no-op) when this file is sourced
+# standalone by migrate.sh / remote-migrate — note those scripts' own
+# apt-get calls and remote (ssh) installs do not inherit the wait.
+# Any non-empty EE_APT_LOCK_WAIT (e.g. =1) enables the dpkg lock-wait; it is an
+# on/off flag, not a duration (the timeouts below are fixed).  Tier variables
+# are left empty (no-op) when unset.
+if [ -n "${EE_APT_LOCK_WAIT:-}" ]; then
+  _EE_APT_LOCK_LIGHT_INSTALL="-o DPkg::Lock::Timeout=900"
+  _EE_APT_LOCK_INSTALL="-o DPkg::Lock::Timeout=1800"
+else
+  _EE_APT_LOCK_LIGHT_INSTALL="${_EE_APT_LOCK_LIGHT_INSTALL:-}"
+  _EE_APT_LOCK_INSTALL="${_EE_APT_LOCK_INSTALL:-}"
+fi
+
+ee_apt_update() {
+  local i err
+  for i in $(seq 1 30); do
+    if err="$(apt-get update 2>&1)"; then printf '%s\n' "$err"; return 0; fi
+    printf '%s\n' "$err" >&2
+    printf '%s' "$err" | grep -qiE "Could not get lock|Unable to lock" || return 1
+    ee_log_info2 "apt lists lock busy; retrying in 10s"
+    sleep 10
+  done
+  apt-get update
+}
+
 has_tty() {
   declare desc="return 0 if we have a tty"
   if [[ "$(/usr/bin/tty || true)" == "not a tty" ]]; then
@@ -220,6 +247,7 @@ get_ondrej_php_ppa_release_status() {
 # unsatisfiable deps (e.g. a PPA build needing a libxml2 the OS lacks) are caught
 # before touching the system.
 ee_php_cli_installable() {
+  # -s (simulate) takes no dpkg lock, so a lock-wait option here would be a no-op
   apt-get install -s "php${1}-cli" >/dev/null 2>&1
 }
 
@@ -228,8 +256,8 @@ ee_php_cli_installable() {
 ee_php_add_thirdparty_repo() {
   [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] && return 0
   if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
-    apt-get install -y software-properties-common curl ca-certificates
-    add-apt-repository -y ppa:ondrej/php || true
+    apt-get $_EE_APT_LOCK_INSTALL install -y software-properties-common curl ca-certificates
+    add-apt-repository -ny ppa:ondrej/php || true
     local want use="" c f
     want="$(lsb_release -sc)"
     if [ "$(get_ondrej_php_ppa_release_status "$want")" == "200" ]; then
@@ -251,13 +279,13 @@ ee_php_add_thirdparty_repo() {
       return 1
     fi
   elif [ "$EE_LINUX_DISTRO" == "Debian" ]; then
-    apt-get install -y apt-transport-https lsb-release ca-certificates curl locales locales-all
+    apt-get $_EE_APT_LOCK_INSTALL install -y apt-transport-https lsb-release ca-certificates curl locales locales-all
     export LC_ALL=en_US.UTF-8
     export LANG=en_US.UTF-8
     curl -fsSL https://packages.sury.org/php/apt.gpg -o /etc/apt/trusted.gpg.d/php.gpg
     echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list
   fi
-  apt-get update
+  ee_apt_update
   EE_PHP_THIRDPARTY_ADDED=1
   return 0
 }
@@ -267,7 +295,7 @@ ee_php_drop_thirdparty_repo() {
   [ "$EE_PHP_THIRDPARTY_ADDED" == "1" ] || return 0
   if [ "$EE_LINUX_DISTRO" == "Ubuntu" ]; then
     rm -f /etc/apt/sources.list.d/ondrej-ubuntu-php* /etc/apt/preferences.d/ee-ondrej-php
-    apt-get update
+    ee_apt_update
     EE_PHP_THIRDPARTY_ADDED=""
   fi
 }
@@ -290,13 +318,13 @@ ee_select_and_install_php() {
       # Native: drop any probe PPA so it isn't shadowed.
       ee_php_drop_thirdparty_repo
       ee_log_info2 "Installing PHP ${v} (native)"
-      apt-get install -y "php${v}-cli"
+      apt-get $_EE_APT_LOCK_INSTALL install -y "php${v}-cli"
       EE_INSTALLED_PHP_VERSION="$v"
       return 0
     fi
     if ee_php_add_thirdparty_repo && ee_php_cli_installable "$v"; then
       ee_log_info2 "Installing PHP ${v} (third-party repo)"
-      apt-get install -y "php${v}-cli"
+      apt-get $_EE_APT_LOCK_INSTALL install -y "php${v}-cli"
       EE_INSTALLED_PHP_VERSION="$v"
       return 0
     fi
@@ -327,12 +355,12 @@ function setup_php() {
     ee_log_info2 "No PHP pinned; trying in order (version-first): ${candidates}"
   fi
 
-  apt-get update
+  ee_apt_update
   ee_select_and_install_php $candidates || true
 
   # Unpinned fallback: distro default php-cli, so an unknown OS still gets a php.
   if [ -z "$EE_INSTALLED_PHP_VERSION" ] && [ -z "$EE_PHP_VERSION" ]; then
-    if apt-get install -y php-cli && command -v php >/dev/null 2>&1; then
+    if apt-get $_EE_APT_LOCK_INSTALL install -y php-cli && command -v php >/dev/null 2>&1; then
       EE_INSTALLED_PHP_VERSION="$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)"
       [ -n "$EE_INSTALLED_PHP_VERSION" ] && ee_log_info2 "Fell back to distro default php-cli (${EE_INSTALLED_PHP_VERSION})"
     fi
@@ -359,7 +387,7 @@ function setup_php_extensions() {
   if command -v php >/dev/null 2>&1; then
     php_extensions=(curl sqlite3 zip)
     if ! command -v gawk >/dev/null 2>&1; then
-      apt-get install gawk -y
+      apt-get $_EE_APT_LOCK_LIGHT_INSTALL install gawk -y
     fi
     # Use the version setup_php installed; else detect from the `php` symlink.
     default_php_version="${EE_INSTALLED_PHP_VERSION:-}"
@@ -378,7 +406,7 @@ function setup_php_extensions() {
       fi
     done
     if [ -n "$packages" ]; then
-      apt-get install -y $packages
+      apt-get $_EE_APT_LOCK_INSTALL install -y $packages
     fi
   fi
 }
@@ -407,7 +435,7 @@ function setup_host_dependencies() {
     if [ "$EE_LINUX_DISTRO" == "Ubuntu" ] || [ "$EE_LINUX_DISTRO" == "Debian" ]; then
       if ! command -v ip >> $LOG_FILE 2>&1; then
         ee_log_info2 "Installing iproute2"
-        apt-get install iproute2 -y
+        apt-get $_EE_APT_LOCK_LIGHT_INSTALL install iproute2 -y
       fi
     fi
 }
@@ -431,11 +459,11 @@ function check_dependencies() {
   # can find their packages.  On a freshly booted machine the apt cache
   # is typically empty and installs would fail without this.
   ee_log_info2 "Updating apt cache"
-  apt-get update
+  ee_apt_update
 
   if ! command -v sqlite3 >/dev/null 2>&1; then
     ee_log_info2 "Installing sqlite3"
-    apt-get install sqlite3 -y
+    apt-get $_EE_APT_LOCK_LIGHT_INSTALL install sqlite3 -y
   fi
 
   setup_host_dependencies
