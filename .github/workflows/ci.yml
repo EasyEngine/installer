@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      # Gating: the actively-maintained installer must stay free of error-level
+      # findings. setup.sh + functions are error-clean today.
+      - name: ShellCheck core installer (gating)
+        run: shellcheck --severity=error setup.sh functions
+      # Informational: full report incl. migration scripts (which still carry
+      # error-level findings — see tests/README.md "Known issues"). Non-gating
+      # until those are triaged; ratchet up once they are fixed.
+      - name: ShellCheck full report (informational)
+        run: |
+          shellcheck --severity=style \
+            setup.sh functions migration/migrate.sh migration/remote-migrate || true
+
+  shfmt:
+    name: shfmt (informational)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shfmt
+        run: sudo apt-get update && sudo apt-get install -y shfmt || true
+      - name: Show formatting diff
+        run: |
+          command -v shfmt >/dev/null 2>&1 || { echo "shfmt unavailable; skipping"; exit 0; }
+          shfmt -d -i 2 -ci setup.sh functions || true
+
+  unit:
+    name: Unit tests (bats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run unit tests
+        run: bats tests/unit
+
+  integration:
+    name: Host prep (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:22.04     # LTS
+          - ubuntu:24.04     # LTS
+          - ubuntu:26.04     # LTS — pinned: drove the host-PHP fixes, kept after rolling moves on
+          - ubuntu:rolling   # latest stable release (floats forward)
+          - ubuntu:devel     # next, in-development Ubuntu — earliest warning
+          - debian:12
+          - debian:13
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - name: Install checkout prerequisites
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git
+      - uses: actions/checkout@v4
+      - name: Run host-prep assertions
+        run: bash tests/integration/host-prep.sh
