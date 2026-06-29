@@ -1,0 +1,8 @@
+# ShellCheck configuration for the EasyEngine installer.
+
+# Follow sourced files where the path is statically known.
+external-sources=true
+
+# The installer sources files whose paths are only known at runtime
+# (e.g. "$TMP_WORK_DIR/helper-functions"); shellcheck cannot follow these.
+disable=SC1090,SC1091
