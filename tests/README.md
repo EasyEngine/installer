@@ -75,7 +75,7 @@ functions to drive the algorithm through every branch deterministically.
 - `download_and_install_easyengine` — checksum match / mismatch / empty phar /
   empty checksum / download failure.
 - Host-prep integration — php + the three required extensions install across
-  Ubuntu 22.04/24.04/rolling/devel and Debian 12/13.
+  Ubuntu 22.04/24.04/26.04/rolling/devel and Debian 12/13.
 
 ## Not yet covered (candidate follow-ups)
 

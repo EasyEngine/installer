@@ -57,10 +57,11 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - ubuntu:22.04
-          - ubuntu:24.04
-          - ubuntu:rolling   # newest interim release
-          - ubuntu:devel     # next (pre-release) Ubuntu — guards the 26.04 class
+          - ubuntu:22.04     # LTS
+          - ubuntu:24.04     # LTS
+          - ubuntu:26.04     # LTS — pinned: drove the host-PHP fixes, kept after rolling moves on
+          - ubuntu:rolling   # latest stable release (floats forward)
+          - ubuntu:devel     # next, in-development Ubuntu — earliest warning
           - debian:12
           - debian:13
     container:
