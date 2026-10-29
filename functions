@@ -466,21 +466,19 @@ function check_php_functions() {
       else
         ee_log_verbose "disable_functions is set in one of the files that php --ini lists."
       fi
-      ee_log_verbose "EasyEngine calls these functions directly and can't run without them."
       # A conf.d override only wins over files that load before it, so not when conf.d itself disables them.
       if [ -n "$scan_dir" ] && [[ ", $ini_files" != *", $scan_dir/"* ]]; then
-        ee_log_verbose "To fix it, create ${scan_dir}/99-easyengine.ini that sets disable_functions to the same list without these functions."
-        ee_log_verbose "It overrides php.ini and is kept when a tool rewrites php.ini on upgrade. Editing php.ini directly also works."
+        ee_log_verbose "To fix it, create ${scan_dir}/99-easyengine.ini that sets disable_functions to the same list without these functions, or edit php.ini directly."
       else
         if [ -n "$ini_files" ]; then where="the file(s) above"; else where="that file"; fi
         ee_log_verbose "To fix it, remove them from disable_functions in ${where}."
       fi
-      ee_log_verbose "Only the PHP CLI configuration needs the change; PHP-FPM can stay as it is. Then re-run the installer."
+      ee_log_verbose "Only the PHP CLI configuration needs the change, not PHP-FPM. Then re-run the installer."
     } >&2
   fi
   if [ -n "$missing" ]; then
     echo "ERROR: The PHP CLI ($(command -v php)) lacks functions EasyEngine needs: ${missing}." >&2
-    ee_log_verbose "Install or enable the PHP extensions that provide them (e.g. pcntl, posix, curl), then re-run the installer." >&2
+    ee_log_verbose "To fix it, install or enable the PHP extensions that provide them (e.g. pcntl, posix, curl) for the PHP CLI. Then re-run the installer." >&2
   fi
   exit 1
 }

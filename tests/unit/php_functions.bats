@@ -25,6 +25,13 @@ exit "${PHP_EXIT:-0}"
 EOF
 }
 
+# The error, from its ERROR: line on, spans exactly $1 lines.
+assert_error_lines() {
+  local n
+  n="$(sed -n '/^ERROR: /,$p' <<< "$output" | wc -l)"
+  [ "$n" -eq "$1" ]
+}
+
 @test "passes when every required function is available" {
   stub_php_report
   PHP_REPORT="" run check_php_functions
@@ -44,9 +51,9 @@ EOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"ERROR: The PHP CLI ("*") disables functions EasyEngine needs: pcntl_signal, pcntl_signal_dispatch."* ]]
   [[ "$output" == *"       disable_functions is set in: /etc/php/8.3/cli/php.ini"* ]]
-  [[ "$output" == *"create /etc/php/8.3/cli/conf.d/99-easyengine.ini that sets disable_functions to the same list without these functions."* ]]
-  [[ "$output" == *"Editing php.ini directly also works."* ]]
-  [[ "$output" == *"Then re-run the installer."* ]]
+  [[ "$output" == *"create /etc/php/8.3/cli/conf.d/99-easyengine.ini that sets disable_functions to the same list without these functions, or edit php.ini directly."* ]]
+  [[ "$output" == *"Only the PHP CLI configuration needs the change, not PHP-FPM. Then re-run the installer."* ]]
+  assert_error_lines 4
 }
 
 @test "suggests editing the files when a conf.d file disables the functions" {
@@ -56,6 +63,7 @@ EOF
   [[ "$output" == *"disable_functions is set in: /etc/php/8.3/cli/php.ini, /etc/php/8.3/cli/conf.d/99-zz-hardening.ini"* ]]
   [[ "$output" == *"remove them from disable_functions in the file(s) above."* ]]
   [[ "$output" != *99-easyengine.ini* ]]
+  assert_error_lines 4
 }
 
 @test "only warns about pcntl functions PHP 7 disables" {
@@ -72,6 +80,7 @@ EOF
   [ "$status" -eq 1 ]
   [[ "$output" == *"disable_functions is set in one of the files that php --ini lists."* ]]
   [[ "$output" == *"remove them from disable_functions in that file."* ]]
+  assert_error_lines 4
 }
 
 @test "fails and names functions missing from the PHP build" {
@@ -79,8 +88,10 @@ EOF
   PHP_REPORT='missing pcntl_signal\n' run check_php_functions
   [ "$status" -eq 1 ]
   [[ "$output" == *"lacks functions EasyEngine needs: pcntl_signal."* ]]
-  [[ "$output" == *"Install or enable the PHP extensions that provide them"* ]]
+  [[ "$output" == *"To fix it, install or enable the PHP extensions that provide them"* ]]
+  [[ "$output" == *"Then re-run the installer."* ]]
   [[ "$output" != *"disables functions"* ]]
+  assert_error_lines 2
 }
 
 @test "fails when the PHP CLI cannot run" {

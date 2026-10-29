@@ -90,6 +90,7 @@ if [ -n "$scan_dir" ] && [ -d "$scan_dir" ]; then
   check "the error names the disabled functions"    grep -qF "disables functions EasyEngine needs: pcntl_signal, pcntl_signal_dispatch." <<< "$hardened_out"
   check "the error names the ini file"              grep -qF "$hardened_ini" <<< "$hardened_out"
   check "the error says to edit that file"          grep -qF "remove them from disable_functions in the file(s) above." <<< "$hardened_out"
+  check "the error is at most 4 lines"              test "$(sed -n '/^ERROR: /,$p' <<< "$hardened_out" | wc -l)" -le 4
 else
   fail "PHP CLI has no config scan dir to test disable_functions with"
 fi
