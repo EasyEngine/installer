@@ -411,6 +411,78 @@ function setup_php_extensions() {
   fi
 }
 
+# Functions ee calls unguarded that hardened php.ini files (e.g. HestiaCP's CLI one) often list in disable_functions.
+EE_PHP_REQUIRED_FUNCTIONS="curl_exec disk_free_space escapeshellarg exec getmypid ini_set pcntl_signal pcntl_signal_dispatch php_uname posix_getegid posix_geteuid posix_getpwuid proc_close proc_open"
+
+function check_php_functions() {
+  ee_log_info1 "Checking required PHP functions"
+  if ! command -v php >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local report kind name disabled="" missing="" degraded="" ini_files="" scan_dir="" where
+  # PHP 7 only warns when a disabled function is called, so disabled pcntl_* just loses rollback on signals there.
+  # shellcheck disable=SC2016,SC2086 # PHP code, not shell; one argument per function
+  if ! report="$(php -r '
+    $off = function_exists("ini_get") ? preg_split("/[\s,]+/", (string) ini_get("disable_functions")) : array();
+    foreach (array_slice($argv, 1) as $f) {
+      if (function_exists($f)) { continue; }
+      if (!in_array($f, $off, true)) { echo "missing ", $f, "\n"; }
+      elseif (PHP_MAJOR_VERSION < 8 && strpos($f, "pcntl_") === 0) { echo "degraded ", $f, "\n"; }
+      else { echo "disabled ", $f, "\n"; }
+    }
+    if (function_exists("php_ini_loaded_file") && function_exists("php_ini_scanned_files") && function_exists("file_get_contents")) {
+      $files = array_merge(array((string) php_ini_loaded_file()), explode(",", (string) php_ini_scanned_files()));
+      foreach (array_filter(array_map("trim", $files)) as $file) {
+        if (preg_match("/^[ \t]*disable_functions[ \t]*=[ \t]*[\"\x27]?[ \t]*[A-Za-z_]/m", (string) @file_get_contents($file))) { echo "ini ", $file, "\n"; }
+      }
+    }
+    echo "scandir ", PHP_CONFIG_FILE_SCAN_DIR, "\n";' -- $EE_PHP_REQUIRED_FUNCTIONS)"; then
+    ee_log_fail "ERROR: Could not run the PHP CLI ($(command -v php)) to check the functions EasyEngine needs."
+  fi
+
+  while read -r kind name; do
+    case "$kind" in
+      disabled) disabled+="${disabled:+, }$name" ;;
+      missing) missing+="${missing:+, }$name" ;;
+      degraded) degraded+="${degraded:+, }$name" ;;
+      ini) ini_files+="${ini_files:+, }$name" ;;
+      scandir) scan_dir="$name" ;;
+    esac
+  done <<< "$report"
+
+  if [ -n "$degraded" ]; then
+    ee_log_warn "The PHP CLI disables ${degraded}; EasyEngine can't roll back a site operation interrupted by a signal (on PHP 8 this is a fatal error)."
+  fi
+  if [ -z "$disabled" ] && [ -z "$missing" ]; then
+    return 0
+  fi
+
+  if [ -n "$disabled" ]; then
+    echo "ERROR: The PHP CLI ($(command -v php)) disables functions EasyEngine needs: ${disabled}." >&2
+    {
+      if [ -n "$ini_files" ]; then
+        ee_log_verbose "disable_functions is set in: ${ini_files}"
+      else
+        ee_log_verbose "disable_functions is set in one of the files that php --ini lists."
+      fi
+      # A conf.d override only wins over files that load before it, so not when conf.d itself disables them.
+      if [ -n "$scan_dir" ] && [[ ", $ini_files" != *", $scan_dir/"* ]]; then
+        ee_log_verbose "To fix it, create ${scan_dir}/99-easyengine.ini that sets disable_functions to the same list without these functions, or edit php.ini directly."
+      else
+        if [ -n "$ini_files" ]; then where="the file(s) above"; else where="that file"; fi
+        ee_log_verbose "To fix it, remove them from disable_functions in ${where}."
+      fi
+      ee_log_verbose "Only the PHP CLI configuration needs the change, not PHP-FPM. Then re-run the installer."
+    } >&2
+  fi
+  if [ -n "$missing" ]; then
+    echo "ERROR: The PHP CLI ($(command -v php)) lacks functions EasyEngine needs: ${missing}." >&2
+    ee_log_verbose "To fix it, install or enable the PHP extensions that provide them (e.g. pcntl, posix, curl) for the PHP CLI. Then re-run the installer." >&2
+  fi
+  exit 1
+}
+
 function create_swap() {
   ee_log_info2 "Enabling 1GiB swap"
   EE_SWAP_FILE="/ee-swapfile"
@@ -467,9 +539,11 @@ function check_dependencies() {
   fi
 
   setup_host_dependencies
-  setup_docker
   setup_php
   setup_php_extensions
+  # Before Docker, so a refused host is left without it.
+  check_php_functions
+  setup_docker
   check_swap
 }
 

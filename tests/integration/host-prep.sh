@@ -74,6 +74,27 @@ for ext in curl sqlite3 zip; do
   check "php extension loaded: $ext"          bash -c "php -m | grep -qiE '^${ext}\$'"
 done
 
+# The functions ee calls are usable on a stock distro PHP; check_php_functions exits on failure, hence the subshell.
+in_subshell() { ( "$@" ); }
+check "required PHP functions are available"  in_subshell check_php_functions
+
+# A HestiaCP-style CLI disable_functions must be refused with the file named; a scan-dir file overrides php.ini.
+scan_dir="$(php -r 'echo PHP_CONFIG_FILE_SCAN_DIR;')"
+if [ -n "$scan_dir" ] && [ -d "$scan_dir" ]; then
+  hardened_ini="$scan_dir/99-ee-test-hardening.ini"
+  echo "disable_functions = pcntl_alarm,pcntl_fork,pcntl_signal,pcntl_signal_dispatch" > "$hardened_ini"
+  hardened_out="$( (check_php_functions) 2>&1 )"
+  hardened_rc=$?
+  rm -f "$hardened_ini"
+  check "disabled PHP functions are refused"        test "$hardened_rc" -ne 0
+  check "the error names the disabled functions"    grep -qF "disables functions EasyEngine needs: pcntl_signal, pcntl_signal_dispatch." <<< "$hardened_out"
+  check "the error names the ini file"              grep -qF "$hardened_ini" <<< "$hardened_out"
+  check "the error says to edit that file"          grep -qF "remove them from disable_functions in the file(s) above." <<< "$hardened_out"
+  check "the error is at most 4 lines"              test "$(sed -n '/^ERROR: /,$p' <<< "$hardened_out" | wc -l)" -le 4
+else
+  fail "PHP CLI has no config scan dir to test disable_functions with"
+fi
+
 # Base host dependency installed earlier in check_dependencies().
 if ! command -v sqlite3 >/dev/null 2>&1; then
   apt-get install -y sqlite3 >/dev/null 2>&1 || true
