@@ -74,6 +74,25 @@ for ext in curl sqlite3 zip; do
   check "php extension loaded: $ext"          bash -c "php -m | grep -qiE '^${ext}\$'"
 done
 
+# The functions ee calls are usable on a stock distro PHP; check_php_functions exits on failure, hence the subshell.
+in_subshell() { ( "$@" ); }
+check "required PHP functions are available"  in_subshell check_php_functions
+
+# A HestiaCP-style CLI disable_functions must be refused with the file named; a scan-dir file overrides php.ini.
+scan_dir="$(php -r 'echo PHP_CONFIG_FILE_SCAN_DIR;')"
+if [ -n "$scan_dir" ] && [ -d "$scan_dir" ]; then
+  panel_ini="$scan_dir/99-ee-test-panel.ini"
+  echo "disable_functions = pcntl_alarm,pcntl_fork,pcntl_signal,pcntl_signal_dispatch" > "$panel_ini"
+  panel_out="$( (check_php_functions) 2>&1 )"
+  panel_rc=$?
+  rm -f "$panel_ini"
+  check "disabled PHP functions are refused"        test "$panel_rc" -ne 0
+  check "the error names the disabled functions"    grep -qF "disables functions EasyEngine needs: pcntl_signal pcntl_signal_dispatch." <<< "$panel_out"
+  check "the error names the ini file"              grep -qF "$panel_ini" <<< "$panel_out"
+else
+  fail "PHP CLI has no config scan dir to test disable_functions with"
+fi
+
 # Base host dependency installed earlier in check_dependencies().
 if ! command -v sqlite3 >/dev/null 2>&1; then
   apt-get install -y sqlite3 >/dev/null 2>&1 || true

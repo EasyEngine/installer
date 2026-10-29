@@ -19,7 +19,7 @@ bounded **before** the phar download/pull and stubs `docker`, exercising only th
 OS-version–dependent surface that has actually regressed in the past:
 
 ```
-check_dependencies → setup_host_dependencies → setup_php → setup_php_extensions
+check_dependencies → setup_host_dependencies → setup_php → setup_php_extensions → check_php_functions
 ```
 
 PHP selection in particular can only be validated against real distro repos +
@@ -74,8 +74,8 @@ functions to drive the algorithm through every branch deterministically.
 - `ee_select_and_install_php` — native vs PPA, version-first ordering, no-candidate.
 - `download_and_install_easyengine` — checksum match / mismatch / empty phar /
   empty checksum / download failure.
-- Host-prep integration — php + the three required extensions install across
-  Ubuntu 22.04/24.04/26.04/rolling/devel and Debian 12/13.
+- `check_php_functions` — functions disabled via `disable_functions` (comma- or space-separated) or missing from the build, PHP 7's warn-only pcntl case, the messages, and its place in `check_dependencies` (after PHP setup, before Docker).
+- Host-prep integration — php + the three required extensions install across Ubuntu 22.04/24.04/26.04/rolling/devel and Debian 12/13, the functions ee calls are usable, and `check_php_functions` refuses a HestiaCP-style CLI `disable_functions`.
 
 ## Not yet covered (candidate follow-ups)
 
