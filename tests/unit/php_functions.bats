@@ -38,13 +38,24 @@ EOF
   [ "$status" -eq 0 ]
 }
 
-@test "fails and names disabled functions, the ini file and a durable override" {
+@test "fails and names disabled functions, the ini file and a conf.d override" {
   stub_php_report
   PHP_REPORT='disabled pcntl_signal\ndisabled pcntl_signal_dispatch\nini /etc/php/8.3/cli/php.ini\nscandir /etc/php/8.3/cli/conf.d\n' run check_php_functions
   [ "$status" -eq 1 ]
-  [[ "$output" == *"disables functions EasyEngine needs: pcntl_signal pcntl_signal_dispatch."* ]]
-  [[ "$output" == *"disable_functions in: /etc/php/8.3/cli/php.ini"* ]]
-  [[ "$output" == *"/etc/php/8.3/cli/conf.d/99-easyengine.ini"* ]]
+  [[ "$output" == *"ERROR: The PHP CLI ("*") disables functions EasyEngine needs: pcntl_signal, pcntl_signal_dispatch."* ]]
+  [[ "$output" == *"       disable_functions is set in: /etc/php/8.3/cli/php.ini"* ]]
+  [[ "$output" == *"create /etc/php/8.3/cli/conf.d/99-easyengine.ini that sets disable_functions to the same list without these functions."* ]]
+  [[ "$output" == *"Editing php.ini directly also works."* ]]
+  [[ "$output" == *"Then re-run the installer."* ]]
+}
+
+@test "suggests editing the files when a conf.d file disables the functions" {
+  stub_php_report
+  PHP_REPORT='disabled exec\nini /etc/php/8.3/cli/php.ini\nini /etc/php/8.3/cli/conf.d/99-zz-hardening.ini\nscandir /etc/php/8.3/cli/conf.d\n' run check_php_functions
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"disable_functions is set in: /etc/php/8.3/cli/php.ini, /etc/php/8.3/cli/conf.d/99-zz-hardening.ini"* ]]
+  [[ "$output" == *"remove them from disable_functions in the file(s) above."* ]]
+  [[ "$output" != *99-easyengine.ini* ]]
 }
 
 @test "only warns about pcntl functions PHP 7 disables" {
@@ -59,7 +70,8 @@ EOF
   stub_php_report
   PHP_REPORT='disabled exec\n' run check_php_functions
   [ "$status" -eq 1 ]
-  [[ "$output" == *"(see php --ini)"* ]]
+  [[ "$output" == *"disable_functions is set in one of the files that php --ini lists."* ]]
+  [[ "$output" == *"remove them from disable_functions in that file."* ]]
 }
 
 @test "fails and names functions missing from the PHP build" {
@@ -67,6 +79,7 @@ EOF
   PHP_REPORT='missing pcntl_signal\n' run check_php_functions
   [ "$status" -eq 1 ]
   [[ "$output" == *"lacks functions EasyEngine needs: pcntl_signal."* ]]
+  [[ "$output" == *"Install or enable the PHP extensions that provide them"* ]]
   [[ "$output" != *"disables functions"* ]]
 }
 
@@ -95,7 +108,7 @@ stub_real_php() { # stub_real_php <disable_functions value>
   stub_real_php "pcntl_alarm, curl_exec exec"
   run check_php_functions
   [ "$status" -eq 1 ]
-  [[ "$output" == *"disables functions EasyEngine needs: curl_exec exec."* ]]
+  [[ "$output" == *"disables functions EasyEngine needs: curl_exec, exec."* ]]
 }
 
 @test "real php: passes when nothing required is disabled" {

@@ -420,7 +420,7 @@ function check_php_functions() {
     return 0
   fi
 
-  local report kind name disabled="" missing="" degraded="" ini_files="" scan_dir=""
+  local report kind name disabled="" missing="" degraded="" ini_files="" scan_dir="" where
   # PHP 7 only warns when a disabled function is called, so disabled pcntl_* just loses rollback on signals there.
   # shellcheck disable=SC2016,SC2086 # PHP code, not shell; one argument per function
   if ! report="$(php -r '
@@ -443,31 +443,44 @@ function check_php_functions() {
 
   while read -r kind name; do
     case "$kind" in
-      disabled) disabled+=" $name" ;;
-      missing) missing+=" $name" ;;
-      degraded) degraded+=" $name" ;;
-      ini) ini_files+=" $name" ;;
+      disabled) disabled+="${disabled:+, }$name" ;;
+      missing) missing+="${missing:+, }$name" ;;
+      degraded) degraded+="${degraded:+, }$name" ;;
+      ini) ini_files+="${ini_files:+, }$name" ;;
       scandir) scan_dir="$name" ;;
     esac
   done <<< "$report"
 
   if [ -n "$degraded" ]; then
-    ee_log_warn "The PHP CLI disables${degraded}; EasyEngine can't roll back a site operation interrupted by a signal (on PHP 8 this is a fatal error)."
+    ee_log_warn "The PHP CLI disables ${degraded}; EasyEngine can't roll back a site operation interrupted by a signal (on PHP 8 this is a fatal error)."
   fi
   if [ -z "$disabled" ] && [ -z "$missing" ]; then
     return 0
   fi
 
   if [ -n "$disabled" ]; then
-    echo "ERROR: The PHP CLI ($(command -v php)) disables functions EasyEngine needs:${disabled}." >&2
-    echo "       They are listed in disable_functions in:${ini_files:- (see php --ini)}" >&2
-    echo "       Hosting panels such as HestiaCP set this. Remove them from disable_functions in the PHP CLI configuration (the PHP-FPM one can stay as it is) and re-run." >&2
-    if [ -n "$scan_dir" ]; then
-      echo "       Panel upgrades may rewrite php.ini; a file such as ${scan_dir}/99-easyengine.ini that sets disable_functions without them keeps the change." >&2
-    fi
+    echo "ERROR: The PHP CLI ($(command -v php)) disables functions EasyEngine needs: ${disabled}." >&2
+    {
+      if [ -n "$ini_files" ]; then
+        ee_log_verbose "disable_functions is set in: ${ini_files}"
+      else
+        ee_log_verbose "disable_functions is set in one of the files that php --ini lists."
+      fi
+      ee_log_verbose "EasyEngine calls these functions directly and can't run without them."
+      # A conf.d override only wins over files that load before it, so not when conf.d itself disables them.
+      if [ -n "$scan_dir" ] && [[ ", $ini_files" != *", $scan_dir/"* ]]; then
+        ee_log_verbose "To fix it, create ${scan_dir}/99-easyengine.ini that sets disable_functions to the same list without these functions."
+        ee_log_verbose "It overrides php.ini and is kept when a tool rewrites php.ini on upgrade. Editing php.ini directly also works."
+      else
+        if [ -n "$ini_files" ]; then where="the file(s) above"; else where="that file"; fi
+        ee_log_verbose "To fix it, remove them from disable_functions in ${where}."
+      fi
+      ee_log_verbose "Only the PHP CLI configuration needs the change; PHP-FPM can stay as it is. Then re-run the installer."
+    } >&2
   fi
   if [ -n "$missing" ]; then
-    echo "ERROR: The PHP CLI ($(command -v php)) lacks functions EasyEngine needs:${missing}. Enable the PHP extensions that provide them (e.g. pcntl, posix, curl) and re-run." >&2
+    echo "ERROR: The PHP CLI ($(command -v php)) lacks functions EasyEngine needs: ${missing}." >&2
+    ee_log_verbose "Install or enable the PHP extensions that provide them (e.g. pcntl, posix, curl), then re-run the installer." >&2
   fi
   exit 1
 }
