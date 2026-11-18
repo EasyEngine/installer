@@ -78,16 +78,23 @@ done
 in_subshell() { ( "$@" ); }
 check "required PHP functions are available"  in_subshell check_php_functions
 
-# A HestiaCP-style CLI disable_functions must be refused with the file named; a scan-dir file overrides php.ini.
+# A HestiaCP-style CLI disable_functions (pcntl_*) only warns; a required function disabled next to them is refused with the file named.
 scan_dir="$(php -r 'echo PHP_CONFIG_FILE_SCAN_DIR;')"
 if [ -n "$scan_dir" ] && [ -d "$scan_dir" ]; then
   hardened_ini="$scan_dir/99-ee-test-hardening.ini"
   echo "disable_functions = pcntl_alarm,pcntl_fork,pcntl_signal,pcntl_signal_dispatch" > "$hardened_ini"
+  pcntl_out="$( (check_php_functions) 2>&1 )"
+  pcntl_rc=$?
+  echo "disable_functions = pcntl_alarm,pcntl_fork,pcntl_signal,pcntl_signal_dispatch,exec" > "$hardened_ini"
   hardened_out="$( (check_php_functions) 2>&1 )"
   hardened_rc=$?
   rm -f "$hardened_ini"
-  check "disabled PHP functions are refused"        test "$hardened_rc" -ne 0
-  check "the error names the disabled functions"    grep -qF "disables functions EasyEngine needs: pcntl_signal, pcntl_signal_dispatch." <<< "$hardened_out"
+  check "disabled pcntl functions are accepted"     test "$pcntl_rc" -eq 0
+  check "disabled pcntl functions get a warning"    grep -qF "PHP function pcntl_signal() is unavailable" <<< "$pcntl_out"
+  no_error() { ! grep -q ERROR <<< "$1"; }
+  check "disabled pcntl functions are no error"     no_error "$pcntl_out"
+  check "disabled required functions are refused"   test "$hardened_rc" -ne 0
+  check "the error names the disabled functions"    grep -qF "disables functions EasyEngine needs: exec." <<< "$hardened_out"
   check "the error names the ini file"              grep -qF "$hardened_ini" <<< "$hardened_out"
   check "the error says to edit that file"          grep -qF "remove them from disable_functions in the file(s) above." <<< "$hardened_out"
   check "the error is at most 4 lines"              test "$(sed -n '/^ERROR: /,$p' <<< "$hardened_out" | wc -l)" -le 4

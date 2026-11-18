@@ -411,8 +411,18 @@ function setup_php_extensions() {
   fi
 }
 
-# Functions ee calls unguarded that hardened php.ini files (e.g. HestiaCP's CLI one) often list in disable_functions.
-EE_PHP_REQUIRED_FUNCTIONS="curl_exec disk_free_space escapeshellarg exec getmypid ini_set pcntl_signal pcntl_signal_dispatch php_uname posix_getegid posix_geteuid posix_getpwuid proc_close proc_open"
+# The functions ee refuses to run without, and the ones it only warns about (core's EE\Requirements FUNCTIONS and OPTIONAL_FUNCTIONS).
+EE_PHP_REQUIRED_FUNCTIONS="chgrp chown curl_close curl_errno curl_error curl_exec curl_getinfo curl_init curl_setopt curl_version disk_free_space escapeshellarg exec gethostname getmypid gzclose gzeof gzgets gzopen gzwrite openssl_pkey_get_private openssl_x509_check_private_key openssl_x509_parse parse_ini_string php_uname posix_getegid posix_geteuid posix_getpwuid proc_close proc_open stream_select stream_set_blocking symlink"
+EE_PHP_OPTIONAL_FUNCTIONS="pcntl_signal pcntl_signal_dispatch shell_exec"
+
+# What ee loses without an optional function, worded as core's debug message.
+function ee_php_optional_impact() {
+  case "$1" in
+    pcntl_signal) echo "site commands interrupted by a signal (e.g. Ctrl+C) are not rolled back" ;;
+    pcntl_signal_dispatch) echo "Ctrl+C while waiting for another SSL operation takes effect only after the wait" ;;
+    shell_exec) echo "\`ee site share\` does not work" ;;
+  esac
+}
 
 function check_php_functions() {
   ee_log_info1 "Checking required PHP functions"
@@ -420,15 +430,20 @@ function check_php_functions() {
     return 0
   fi
 
-  local report kind name disabled="" missing="" degraded="" ini_files="" scan_dir="" where
-  # PHP 7 only warns when a disabled function is called, so disabled pcntl_* just loses rollback on signals there.
+  local report kind name disabled="" missing="" optional="" ini_files="" scan_dir="" where
+  # Required functions come before the "--", optional ones after it.
   # shellcheck disable=SC2016,SC2086 # PHP code, not shell; one argument per function
   if ! report="$(php -r '
     $off = function_exists("ini_get") ? preg_split("/[\s,]+/", (string) ini_get("disable_functions")) : array();
+    $is_optional = false;
     foreach (array_slice($argv, 1) as $f) {
+      if ($f === "--") { $is_optional = true; continue; }
       if (function_exists($f)) { continue; }
-      if (!in_array($f, $off, true)) { echo "missing ", $f, "\n"; }
-      elseif (PHP_MAJOR_VERSION < 8 && strpos($f, "pcntl_") === 0) { echo "degraded ", $f, "\n"; }
+      if ($is_optional) {
+        // As in core: without pcntl_signal() there is no handler to dispatch.
+        if ($f !== "pcntl_signal_dispatch" || function_exists("pcntl_signal")) { echo "optional ", $f, "\n"; }
+      }
+      elseif (!in_array($f, $off, true)) { echo "missing ", $f, "\n"; }
       else { echo "disabled ", $f, "\n"; }
     }
     if (function_exists("php_ini_loaded_file") && function_exists("php_ini_scanned_files") && function_exists("file_get_contents")) {
@@ -437,7 +452,7 @@ function check_php_functions() {
         if (preg_match("/^[ \t]*disable_functions[ \t]*=[ \t]*[\"\x27]?[ \t]*[A-Za-z_]/m", (string) @file_get_contents($file))) { echo "ini ", $file, "\n"; }
       }
     }
-    echo "scandir ", PHP_CONFIG_FILE_SCAN_DIR, "\n";' -- $EE_PHP_REQUIRED_FUNCTIONS)"; then
+    echo "scandir ", PHP_CONFIG_FILE_SCAN_DIR, "\n";' -- $EE_PHP_REQUIRED_FUNCTIONS -- $EE_PHP_OPTIONAL_FUNCTIONS)"; then
     ee_log_fail "ERROR: Could not run the PHP CLI ($(command -v php)) to check the functions EasyEngine needs."
   fi
 
@@ -445,15 +460,15 @@ function check_php_functions() {
     case "$kind" in
       disabled) disabled+="${disabled:+, }$name" ;;
       missing) missing+="${missing:+, }$name" ;;
-      degraded) degraded+="${degraded:+, }$name" ;;
+      optional) optional+="${optional:+ }$name" ;;
       ini) ini_files+="${ini_files:+, }$name" ;;
       scandir) scan_dir="$name" ;;
     esac
   done <<< "$report"
 
-  if [ -n "$degraded" ]; then
-    ee_log_warn "The PHP CLI disables ${degraded}; EasyEngine can't roll back a site operation interrupted by a signal (on PHP 8 this is a fatal error)."
-  fi
+  for name in $optional; do
+    ee_log_warn "PHP function ${name}() is unavailable, so $(ee_php_optional_impact "$name")."
+  done
   if [ -z "$disabled" ] && [ -z "$missing" ]; then
     return 0
   fi
@@ -478,7 +493,7 @@ function check_php_functions() {
   fi
   if [ -n "$missing" ]; then
     echo "ERROR: The PHP CLI ($(command -v php)) lacks functions EasyEngine needs: ${missing}." >&2
-    ee_log_verbose "To fix it, install or enable the PHP extensions that provide them (e.g. pcntl, posix, curl) for the PHP CLI. Then re-run the installer." >&2
+    ee_log_verbose "To fix it, install or enable the PHP extensions that provide them (e.g. posix, curl, openssl) for the PHP CLI. Then re-run the installer." >&2
   fi
   exit 1
 }
